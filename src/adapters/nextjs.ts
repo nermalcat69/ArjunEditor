@@ -2,53 +2,96 @@ import { NextRequest, NextResponse } from 'next/server';
 import { EditorConfig } from '../types';
 import { handleGetMarkdown, handleSaveMarkdown, handleFetchUrl } from '../server/api-handlers';
 import { generateEditorHTML } from '../server/editor-page';
-import * as path from 'path';
+import { generateWidgetMiddleware, WidgetConfig } from '../utils/widget-injector';
 
-let currentConfig: EditorConfig | null = null;
+// Global configuration storage
+let currentConfig: EditorConfig & { framework: 'next' } | null = null;
 
 export function mountMarkdownEditor(config: EditorConfig) {
-  // Only mount in development
   if (process.env.NODE_ENV === 'production') {
-    console.warn('dev-md-editor: Editor is disabled in production mode');
     return;
   }
 
   currentConfig = {
     ...config,
-    contentDir: path.resolve(config.contentDir),
     editorPath: config.editorPath || '/_edit',
     allowedExtensions: config.allowedExtensions || ['.md', '.mdx'],
-    framework: 'next',
+    framework: 'next' as const,
   };
 
-  console.log('🚀 dev-md-editor: Mounted for Next.js');
-  console.log(`📁 Content directory: ${currentConfig.contentDir}`);
-  console.log(`🔗 Editor path: [slug]${currentConfig.editorPath}`);
+  console.log('🚀 dev-md-editor mounted for Next.js');
+  console.log(`📁 Content directory: ${currentConfig!.contentDir}`);
+  console.log(`🔗 Editor available at: [slug]${currentConfig!.editorPath}`);
 }
 
-// Middleware function to handle editor routes
 export function createEditorMiddleware() {
-  return async function middleware(request: NextRequest) {
-    if (process.env.NODE_ENV === 'production' || !currentConfig) {
+  return async (request: NextRequest) => {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.next();
+    }
+
+    if (!currentConfig) {
       return NextResponse.next();
     }
 
     const { pathname } = request.nextUrl;
 
+    // Handle editor routes
+    if (pathname.endsWith(currentConfig.editorPath!)) {
+      const slug = pathname.replace(currentConfig.editorPath!, '').substring(1);
+      
+      if (!slug) {
+        return new NextResponse('Invalid slug', { status: 400 });
+      }
+
+      try {
+        const result = await handleGetMarkdown(currentConfig.contentDir, slug);
+        
+        if (!result.success) {
+          return new NextResponse('Markdown file not found', { status: 404 });
+        }
+
+        const html = generateEditorHTML(slug, currentConfig.contentDir, result.data);
+        return new NextResponse(html, {
+          headers: { 'Content-Type': 'text/html' },
+        });
+      } catch (error) {
+        console.error('Editor middleware error:', error);
+        return new NextResponse('Internal server error', { status: 500 });
+      }
+    }
+
     // Handle API routes
-    if (pathname === '/api/_edit/save') {
-      return handleSaveAPI(request);
+    if (pathname === '/api/_edit/save' && request.method === 'POST') {
+      try {
+        const data = await request.json();
+        const result = await handleSaveMarkdown({
+          ...data,
+          contentDir: currentConfig.contentDir,
+        });
+        
+        return NextResponse.json(result);
+      } catch (error) {
+        console.error('Save API error:', error);
+        return NextResponse.json(
+          { success: false, error: (error as Error).message },
+          { status: 500 }
+        );
+      }
     }
 
-    if (pathname === '/api/_edit/fetchUrl') {
-      return handleFetchUrlAPI(request);
-    }
-
-    // Handle editor routes - pattern: /[slug]/_edit
-    if (pathname.endsWith('/_edit')) {
-      const slug = pathname.slice(1, -6); // Remove leading / and trailing /_edit
-      if (slug && !slug.includes('/')) {
-        return handleEditorPage(slug);
+    if (pathname === '/api/_edit/fetch' && request.method === 'POST') {
+      try {
+        const { url } = await request.json();
+        const result = await handleFetchUrl(url);
+        
+        return NextResponse.json(result);
+      } catch (error) {
+        console.error('Fetch API error:', error);
+        return NextResponse.json(
+          { success: false, error: (error as Error).message },
+          { status: 500 }
+        );
       }
     }
 
@@ -56,38 +99,87 @@ export function createEditorMiddleware() {
   };
 }
 
-// Route handler for App Router
 export function createAppRouteHandler(type: 'editor' | 'save' | 'fetchUrl') {
   switch (type) {
     case 'editor':
-      return async function GET(
-        request: NextRequest,
-        context: { params: Promise<{ slug: string }> }
-      ) {
-        if (process.env.NODE_ENV === 'production' || !currentConfig) {
-          return new NextResponse('Not Found', { status: 404 });
+      return async (request: Request, context: { params: Promise<{ slug: string }> | { slug: string } }) => {
+        if (process.env.NODE_ENV === 'production') {
+          return new Response('Not found', { status: 404 });
         }
 
-        const params = await context.params;
-        return handleEditorPage(params.slug);
+        if (!currentConfig) {
+          return new Response('Editor not configured', { status: 500 });
+        }
+
+        try {
+          const params = await context.params;
+          const slug = params.slug;
+
+          if (!slug) {
+            return new Response('Invalid slug', { status: 400 });
+          }
+
+          const result = await handleGetMarkdown(currentConfig.contentDir, slug);
+          
+          if (!result.success) {
+            return new Response('Markdown file not found', { status: 404 });
+          }
+
+          const html = generateEditorHTML(slug, currentConfig.contentDir, result.data);
+          return new Response(html, {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        } catch (error) {
+          console.error('Editor route error:', error);
+          return new Response('Internal server error', { status: 500 });
+        }
       };
 
     case 'save':
-      return async function POST(request: NextRequest) {
-        if (process.env.NODE_ENV === 'production' || !currentConfig) {
-          return NextResponse.json({ success: false, error: 'Not available in production' });
+      return async (request: Request) => {
+        if (process.env.NODE_ENV === 'production') {
+          return Response.json({ success: false, error: 'Not available in production' }, { status: 403 });
         }
 
-        return handleSaveAPI(request);
+        if (!currentConfig) {
+          return Response.json({ success: false, error: 'Editor not configured' }, { status: 500 });
+        }
+
+        try {
+          const data = await request.json();
+          const result = await handleSaveMarkdown({
+            ...data,
+            contentDir: currentConfig.contentDir,
+          });
+          
+          return Response.json(result);
+        } catch (error) {
+          console.error('Save API error:', error);
+          return Response.json(
+            { success: false, error: (error as Error).message },
+            { status: 500 }
+          );
+        }
       };
 
     case 'fetchUrl':
-      return async function POST(request: NextRequest) {
-        if (process.env.NODE_ENV === 'production' || !currentConfig) {
-          return NextResponse.json({ success: 0, error: 'Not available in production' });
+      return async (request: Request) => {
+        if (process.env.NODE_ENV === 'production') {
+          return Response.json({ success: false, error: 'Not available in production' }, { status: 403 });
         }
 
-        return handleFetchUrlAPI(request);
+        try {
+          const { url } = await request.json();
+          const result = await handleFetchUrl(url);
+          
+          return Response.json(result);
+        } catch (error) {
+          console.error('Fetch API error:', error);
+          return Response.json(
+            { success: false, error: (error as Error).message },
+            { status: 500 }
+          );
+        }
       };
 
     default:
@@ -95,66 +187,46 @@ export function createAppRouteHandler(type: 'editor' | 'save' | 'fetchUrl') {
   }
 }
 
-async function handleEditorPage(slug: string): Promise<NextResponse> {
-  if (!currentConfig) {
-    return new NextResponse('Editor not configured', { status: 500 });
-  }
+// Widget injection utilities
+export function createWidgetMiddleware(widgetConfig?: Partial<WidgetConfig>) {
+  const config: WidgetConfig = {
+    contentDir: './content',
+    editorPort: 3456,
+    autoInject: true,
+    ...widgetConfig,
+  };
 
-  try {
-    const result = await handleGetMarkdown(currentConfig.contentDir, slug);
-    
-    if (!result.success) {
-      return new NextResponse(result.error, { status: 500 });
+  const injectWidget = generateWidgetMiddleware(config);
+
+  return (request: NextRequest) => {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.next();
     }
 
-    const html = generateEditorHTML(slug, currentConfig.contentDir, result.data);
-    
-    return new NextResponse(html, {
-      headers: {
-        'Content-Type': 'text/html',
-      },
-    });
-  } catch (error) {
-    console.error('Error serving editor page:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
-  }
+    // Skip widget injection on API routes and editor pages
+    const pathname = request.nextUrl.pathname;
+    if (pathname.startsWith('/api') || pathname.includes('/_edit')) {
+      return NextResponse.next();
+    }
+
+    return NextResponse.next();
+  };
 }
 
-async function handleSaveAPI(request: NextRequest): Promise<NextResponse> {
-  if (!currentConfig) {
-    return NextResponse.json({ success: false, error: 'Editor not configured' });
+export function injectWidgetIntoHTML(html: string, config?: Partial<WidgetConfig>): string {
+  if (process.env.NODE_ENV === 'production') {
+    return html;
   }
 
-  try {
-    const body = await request.json();
-    const result = await handleSaveMarkdown({
-      slug: body.slug,
-      content: body.content,
-      contentDir: currentConfig.contentDir,
-    });
+  const widgetConfig: WidgetConfig = {
+    contentDir: './content',
+    editorPort: 3456,
+    autoInject: true,
+    ...config,
+  };
 
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Error saving markdown:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-}
-
-async function handleFetchUrlAPI(request: NextRequest): Promise<NextResponse> {
-  try {
-    const body = await request.json();
-    const result = await handleFetchUrl(body.url);
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Error fetching URL:', error);
-    return NextResponse.json({
-      success: 0,
-      error: 'Failed to fetch URL data',
-    });
-  }
+  const injectWidget = generateWidgetMiddleware(widgetConfig);
+  return injectWidget(html);
 }
 
 // Helper to generate route files for manual setup

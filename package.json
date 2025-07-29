@@ -4,11 +4,29 @@
   "description": "A plug-and-play dev-only markdown editor for Next.js, SvelteKit, and Astro apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "dev-md-editor": "dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
+    },
+    "./auto": {
+      "import": "./dist/auto-setup.js",
+      "require": "./dist/auto-setup.cjs",
+      "types": "./dist/auto-setup.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli.js",
+      "require": "./dist/cli.cjs",
+      "types": "./dist/cli.d.ts"
+    },
+    "./utils/widget-injector": {
+      "import": "./dist/utils/widget-injector.js",
+      "require": "./dist/utils/widget-injector.cjs",
+      "types": "./dist/utils/widget-injector.d.ts"
     },
     "./nextjs": {
       "import": "./dist/adapters/nextjs.js",
@@ -37,7 +55,8 @@
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm build",
+    "edit:start": "node dist/cli.js"
   },
   "keywords": [
     "markdown",
@@ -47,7 +66,9 @@
     "astro",
     "development",
     "editorjs",
-    "dev-tools"
+    "dev-tools",
+    "cli",
+    "widget"
   ],
   "author": "ArjunEditor",
   "license": "MIT",
@@ -93,5 +114,8 @@
   "bugs": {
     "url": "https://github.com/nermalcat69/dev-md-editor/issues"
   },
-  "homepage": "https://github.com/nermalcat69/dev-md-editor#readme"
+  "homepage": "https://github.com/nermalcat69/dev-md-editor#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
 } 

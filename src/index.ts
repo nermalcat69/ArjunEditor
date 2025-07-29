@@ -2,6 +2,7 @@
 export * from './types';
 export * from './utils/file-utils';
 export * from './utils/editor-converter';
+export * from './utils/widget-injector';
 export * from './server/api-handlers';
 export * from './server/editor-page';
 
@@ -58,7 +59,34 @@ export function autoDetectFramework(): 'next' | 'sveltekit' | 'astro' | null {
   return null;
 }
 
-// Auto-setup function (experimental)
+// ONE-LINE SETUP - This is what most users will use
+export function setup(contentDir: string, options?: Partial<EditorConfig>) {
+  if (process.env.NODE_ENV === 'production') {
+    return; // Do nothing in production
+  }
+
+  const framework = autoDetectFramework();
+  
+  if (!framework) {
+    throw new Error('Could not detect framework. Make sure you have Next.js, SvelteKit, or Astro installed.');
+  }
+
+  const config: EditorConfig & { framework: 'next' | 'sveltekit' | 'astro' } = {
+    contentDir,
+    editorPath: '/_edit',
+    allowedExtensions: ['.md', '.mdx'],
+    framework,
+    ...options,
+  };
+
+  console.log(`🚀 dev-md-editor: Auto-detected ${framework}, setting up editor...`);
+  console.log(`📁 Content directory: ${config.contentDir}`);
+  console.log(`🔗 Editor available at: [slug]${config.editorPath}`);
+  
+  return integrateEditor(config);
+}
+
+// Auto-setup function (experimental) - kept for backwards compatibility
 export function autoSetup(config: Omit<EditorConfig, 'framework'>) {
   const framework = autoDetectFramework();
   
@@ -106,13 +134,9 @@ export const version = '1.0.0';
 // Quick start helpers
 export const quickStart = {
   nextjs: () => ({
-    setup: `import { mountMarkdownEditor } from 'dev-md-editor/nextjs';
+    setup: `import { setup } from 'dev-md-editor';
 
-if (process.env.NODE_ENV !== 'production') {
-  mountMarkdownEditor({
-    contentDir: './content',
-  });
-}`,
+setup('./content');`,
     middleware: `import { createEditorMiddleware } from 'dev-md-editor/nextjs';
 
 const editorMiddleware = createEditorMiddleware();
@@ -120,37 +144,31 @@ const editorMiddleware = createEditorMiddleware();
 export function middleware(request: NextRequest) {
   return editorMiddleware(request);
 }`,
+    widget: `import { injectWidgetIntoHTML } from 'dev-md-editor/nextjs';
+
+// In your layout or page component
+const htmlWithWidget = injectWidgetIntoHTML(originalHtml);`,
   }),
   
   sveltekit: () => ({
-    setup: `import { mountMarkdownEditor } from 'dev-md-editor/sveltekit';
+    setup: `import { setup } from 'dev-md-editor';
 
-if (process.env.NODE_ENV !== 'production') {
-  mountMarkdownEditor({
-    contentDir: './content',
-  });
-}`,
+setup('./content');`,
     hooks: `import { createEditorHandle } from 'dev-md-editor/sveltekit';
 
 export const handle = createEditorHandle();`,
   }),
   
   astro: () => ({
+    setup: `import { setup } from 'dev-md-editor';
+
+setup('./content');`,
     integration: `import { markdownEditor } from 'dev-md-editor/astro';
 
 export default defineConfig({
   integrations: [
-    markdownEditor({
-      contentDir: './content',
-    }),
+    markdownEditor({ contentDir: './content' }),
   ],
 });`,
-    manual: `import { mountMarkdownEditor } from 'dev-md-editor/astro';
-
-if (import.meta.env.DEV) {
-  mountMarkdownEditor({
-    contentDir: './content',
-  });
-}`,
   }),
 }; 
