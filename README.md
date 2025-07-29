@@ -55,15 +55,78 @@ import 'arjun-editor/auto';
 ```
 
 **Manual framework integration:**
+
+### Next.js Manual Setup
+
+Create `middleware.ts`:
 ```ts
-// Next.js
 import { createEditorMiddleware } from 'arjun-editor/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
 
-// SvelteKit  
-import { createEditorHandle } from 'arjun-editor/sveltekit';
+const editorMiddleware = createEditorMiddleware();
 
-// Astro
-import { markdownEditor } from 'arjun-editor/astro';
+export async function middleware(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    const response = await editorMiddleware(request);
+    if (response && response.status !== 200) {
+      return response;
+    }
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};
 ```
+
+Mount in `app/layout.tsx`:
+```tsx
+import { mountMarkdownEditor } from 'arjun-editor/nextjs';
+
+if (process.env.NODE_ENV !== 'production') {
+  mountMarkdownEditor({ contentDir: './content' });
+}
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### SvelteKit Manual Setup
+
+Create/update `src/hooks.server.ts`:
+```ts
+import { createEditorHandle, mountMarkdownEditor } from 'arjun-editor/sveltekit';
+import { sequence } from '@sveltejs/kit/hooks';
+
+if (process.env.NODE_ENV !== 'production') {
+  mountMarkdownEditor({ contentDir: './content' });
+}
+
+export const handle = sequence(createEditorHandle());
+```
+
+### Astro Manual Setup
+
+Update `astro.config.mjs`:
+```js
+import { defineConfig } from 'astro/config';
+import { markdownEditor } from 'arjun-editor/astro';
+
+export default defineConfig({
+  integrations: [
+    markdownEditor({ contentDir: './content' }),
+  ],
+});
+```
+
+## License
+
+MIT
 
 ps: i made this for personal usage only because not everybody likes stuff like this :c
