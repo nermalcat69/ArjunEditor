@@ -1,13 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { markdownToEditorJS, convertEditorDataToMarkdown } from '../utils/editor-converter';
+import { markdownToLexical, lexicalToMarkdown, editorJSToMarkdown } from '../utils/editor-converter';
 import { findMarkdownFile, parseMarkdownFile, writeMarkdownFile } from '../utils/file-utils';
 import { SaveRequest, SaveResponse, EditorData } from '../types';
 
 export async function handleGetMarkdown(
   contentDir: string, 
   slug: string
-): Promise<{ success: boolean; data?: EditorData; error?: string }> {
+): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     // Only allow in development
     if (process.env.NODE_ENV === 'production') {
@@ -17,26 +17,25 @@ export async function handleGetMarkdown(
     const filePath = findMarkdownFile(contentDir, slug);
     
     if (!filePath) {
-      // Create a new file with empty content
-      const editorData: EditorData = {
-        time: Date.now(),
-        blocks: [
-          {
-            id: 'block_0',
-            type: 'paragraph',
-            data: { text: `Start writing your content for "${slug}"...` }
-          }
-        ],
-        version: '2.28.2'
+      // Return raw markdown for new files
+      return { 
+        success: true, 
+        data: { 
+          content: `# ${slug}\n\nStart writing your content...`,
+          frontmatter: {}
+        }
       };
-      
-      return { success: true, data: editorData };
     }
 
     const markdownFile = parseMarkdownFile(filePath);
-    const editorData = markdownToEditorJS(markdownFile.content);
-
-    return { success: true, data: editorData };
+    
+    return { 
+      success: true, 
+      data: {
+        content: markdownFile.content,
+        frontmatter: markdownFile.frontmatter || {}
+      }
+    };
   } catch (error) {
     console.error('Error reading markdown file:', error);
     return { 
@@ -47,7 +46,7 @@ export async function handleGetMarkdown(
 }
 
 export async function handleSaveMarkdown(
-  request: SaveRequest
+  request: any
 ): Promise<SaveResponse> {
   try {
     // Only allow in development
@@ -55,22 +54,39 @@ export async function handleSaveMarkdown(
       return { success: false, error: 'Editor only available in development mode' };
     }
 
-    const { slug, content, contentDir } = request;
+    const { slug, content, contentDir, markdown } = request;
     
-    // Convert editor data back to markdown
-    const markdown = convertEditorDataToMarkdown(content);
+    // Determine which format we're receiving
+    let finalMarkdown: string;
+    
+    if (markdown) {
+      // Direct markdown from Koenig
+      finalMarkdown = markdown;
+    } else if (content && content.blocks) {
+      // Legacy EditorJS format
+      finalMarkdown = editorJSToMarkdown(content);
+    } else if (content && content.root) {
+      // Lexical format
+      finalMarkdown = lexicalToMarkdown(content);
+    } else {
+      // Fallback
+      finalMarkdown = String(content || '');
+    }
     
     // Find existing file or create new path
     let filePath = findMarkdownFile(contentDir, slug);
     
     if (!filePath) {
-      // Create new file
+      // Create new file - ensure contentDir exists
+      if (!fs.existsSync(contentDir)) {
+        fs.mkdirSync(contentDir, { recursive: true });
+      }
       filePath = path.join(contentDir, `${slug}.md`);
     }
 
     // Parse existing file to preserve frontmatter
     let frontmatter = {};
-    if (filePath && require('fs').existsSync(filePath)) {
+    if (filePath && fs.existsSync(filePath)) {
       const existingFile = parseMarkdownFile(filePath);
       frontmatter = existingFile.frontmatter || {};
     }
@@ -78,7 +94,7 @@ export async function handleSaveMarkdown(
     // Write the file
     writeMarkdownFile(filePath, {
       slug,
-      content: markdown,
+      content: finalMarkdown,
       frontmatter,
     });
 

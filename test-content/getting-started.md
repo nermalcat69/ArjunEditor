@@ -12,4 +12,4 @@ This is a test markdown file to verify that ArjunEditor can scan and find markdo
 
 1. Open the editor
 2. Start writing
-3. See changes save automatically 
+3. See changes save automatically

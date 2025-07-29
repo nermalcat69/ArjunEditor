@@ -2,17 +2,19 @@
 
 A **zero-fluff, Ghost-style live markdown editor** for any project with markdown files.
 
-**Just like Ghost**: Run `pnpm run editor`, open `/my-post/_edit`, see a live editor powered by Editor.js, auto-save changes while typing.
+**Just like Ghost**: Run `pnpm run editor`, open `/my-post/_edit`, see a live editor powered by **Ghost's own Koenig editor** ([Lexical-based](https://github.com/TryGhost/Koenig)), auto-save changes while typing.
 
 ## ✨ Features
 
-- **Ultra-fast live editing** - 50ms auto-save with performance metrics
-- **One command setup** - Just `pnpm run editor` and you're editing
-- **Ghost-style interface** - Clean Editor.js with no distractions
-- **Smart scanning** - Finds all `.md`/`.mdx` files automatically
-- **⌨Keyboard shortcuts** - Ctrl+Z undo, Ctrl+Y redo built-in
-- **Zero configuration** - Works with any project structure
-- **Dev-only** - Perfect for development workflow
+- **🎨 Ghost's actual editor** - Uses [@tryghost/koenig-lexical](https://www.npmjs.com/package/@tryghost/koenig-lexical), the real Ghost editor
+- **⚡ Ultra-fast live editing** - 50ms auto-save with performance metrics  
+- **🚀 One command setup** - Just `pnpm run editor` and you're editing
+- **✨ Rich content blocks** - Images, galleries, code, callouts, embeds, and more
+- **📁 Smart scanning** - Finds all `.md`/`.mdx` files automatically
+- **⌨️ Keyboard shortcuts** - Slash menu, Ctrl+Z undo, Ctrl+Y redo built-in
+- **📱 Mobile responsive** - Clean editing on all devices
+- **🔧 Zero configuration** - Works with any project structure
+- **🛡️ Dev-only** - Perfect for development workflow
 
 ## Quick Setup
 
