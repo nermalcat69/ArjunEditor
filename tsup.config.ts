@@ -1,0 +1,17 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: {
+    index: 'src/index.ts',
+    'adapters/nextjs': 'src/adapters/nextjs.ts',
+    'adapters/sveltekit': 'src/adapters/sveltekit.ts',
+    'adapters/astro': 'src/adapters/astro.ts',
+  },
+  format: ['esm', 'cjs'],
+  dts: true,
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+  external: ['next', '@sveltejs/kit', 'astro', 'react', 'svelte'],
+  noExternal: ['@editorjs/editorjs', 'editorjs-html'],
+}); 
