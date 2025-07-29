@@ -6,6 +6,9 @@ export * from './utils/widget-injector';
 export * from './server/api-handlers';
 export * from './server/editor-page';
 
+// React components
+export { ArjunWidget } from './client/ArjunWidget';
+
 // Framework adapters
 export * as nextjs from './adapters/nextjs';
 export * as sveltekit from './adapters/sveltekit';

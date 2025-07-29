@@ -1,38 +1,16 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import React from 'react';
 
-export interface WidgetConfig {
-  port?: number;
-  apiBase?: string;
-  editorBase?: string;
-  contentDir?: string;
-}
-
-export function generateWidgetScript(config: WidgetConfig = {}): string {
-  const {
-    port = 3000, // Default to same port as dev server
-    apiBase = '/api/_arjun_edit',
-    editorBase = '/_arjun_edit',
-    contentDir = './'
-  } = config;
-
-  // Try to read the widget injector file, fallback to inline script
-  try {
-    const widgetPath = path.join(__dirname, '../client/WidgetInjector.js');
-    if (fs.existsSync(widgetPath)) {
-      let script = fs.readFileSync(widgetPath, 'utf8');
-      // Replace placeholders with actual config
-      script = script.replace(/ARJUN_EDITOR_PORT/g, port.toString());
-      script = script.replace(/ARJUN_EDITOR_API_BASE/g, apiBase);
-      script = script.replace(/ARJUN_EDITOR_BASE/g, editorBase);
-      return script;
-    }
-  } catch (error) {
-    console.warn('Could not read widget injector file, using inline script');
+export function ArjunWidget({ 
+  port = 3000, 
+  apiBase = '/api/_arjun_edit', 
+  editorBase = '/_arjun_edit' 
+} = {}) {
+  // Only render in development
+  if (process.env.NODE_ENV === 'production') {
+    return null;
   }
 
-  // Fallback inline script
-  return `
+  const widgetScript = `
 (function() {
   if (typeof window === 'undefined' || window.arjunEditorInjected) return;
   window.arjunEditorInjected = true;
@@ -150,20 +128,12 @@ export function generateWidgetScript(config: WidgetConfig = {}): string {
   });
 })();
   `;
+
+  return (
+    <script 
+      dangerouslySetInnerHTML={{ __html: widgetScript }}
+    />
+  );
 }
 
-export function generateWidgetScriptTag(config: WidgetConfig = {}): string {
-  return `<script>${generateWidgetScript(config)}</script>`;
-}
-
-export function generateWidgetMiddleware(config: WidgetConfig = {}) {
-  const script = generateWidgetScript(config);
-  
-  return function injectWidget(html: string): string {
-    // Inject the widget script before closing body tag
-    if (html.includes('</body>')) {
-      return html.replace('</body>', `<script>${script}</script></body>`);
-    }
-    return html;
-  };
-}
+export default ArjunWidget; 

@@ -86,34 +86,49 @@ export function createEditorMiddleware(config: EditorConfig = { contentDir: './'
       if (pathname.startsWith('/_arjun_edit/') && pathname.endsWith('/_edit')) {
         const filePath = pathname.replace('/_arjun_edit/', '').replace('/_edit', '');
         
-        const result = await handleGetMarkdown('./', filePath);
+        // Try to find the actual file path - handle different possible locations
+        let actualFilePath = filePath;
+        
+        // Check if it's a blog post path (app/blog/posts/slug-name)
+        if (filePath.startsWith('app/blog/posts/')) {
+          const slug = filePath.replace('app/blog/posts/', '');
+          actualFilePath = `app/blog/posts/${slug}.mdx`;
+        } else if (filePath === 'app/blog/page') {
+          actualFilePath = 'app/blog/page.tsx';
+        } else if (filePath === 'app/page') {
+          actualFilePath = 'app/page.tsx';
+        } else if (!filePath.includes('.')) {
+          // Try .mdx first, then .md
+          const fs = require('fs');
+          const path = require('path');
+          
+          if (fs.existsSync(path.join('./', `${filePath}.mdx`))) {
+            actualFilePath = `${filePath}.mdx`;
+          } else if (fs.existsSync(path.join('./', `${filePath}.md`))) {
+            actualFilePath = `${filePath}.md`;
+          }
+        }
+        
+        const result = await handleGetMarkdown('./', actualFilePath);
         
         if (!result.success) {
           return new NextResponse('Markdown file not found', { status: 404 });
         }
 
-        const html = generateEditorHTML(filePath, './', result.data);
+        const html = generateEditorHTML(actualFilePath, './', result.data);
         return new NextResponse(html, {
           headers: { 'Content-Type': 'text/html' },
         });
       }
 
-      // Inject edit widget into HTML responses
-      const response = NextResponse.next();
-      
-      // Check if this is an HTML response
+      // For HTML requests, we'll add a header to indicate widget should be injected
+      // The actual injection should be handled in the layout or by the user
       const accept = request.headers.get('accept');
       if (accept?.includes('text/html')) {
-        // Inject widget script
-        const widgetScript = generateWidgetScript({
-          port: 3000, // Same as dev server
-          apiBase: '/api/_arjun_edit',
-          editorBase: '/_arjun_edit'
-        });
-        
-        // Note: In practice, you'd modify the HTML response here
-        // This is a simplified version - full implementation would use
-        // response transformation
+        // Add header to indicate widget should be injected
+        const response = NextResponse.next();
+        response.headers.set('x-arjun-inject-widget', 'true');
+        return response;
       }
 
     } catch (error) {
@@ -127,10 +142,28 @@ export function createEditorMiddleware(config: EditorConfig = { contentDir: './'
 // Generate dashboard HTML
 function generateDashboardHTML(files: string[]): string {
   const fileList = files.map(file => {
-    const editUrl = `/_arjun_edit/${file.replace(/\.(md|mdx)$/, '')}/_edit`;
-    const fileName = require('path').basename(file, require('path').extname(file));
-    const fileDir = require('path').dirname(file);
-    const displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
+    let editUrl, fileName, displayPath;
+    
+    // Handle different file types and locations
+    if (file.startsWith('app/blog/posts/') && file.endsWith('.mdx')) {
+      // Blog post
+      const slug = require('path').basename(file, '.mdx');
+      editUrl = `/_arjun_edit/app/blog/posts/${slug}/_edit`;
+      fileName = slug;
+      displayPath = `Blog Post: ${slug}`;
+    } else if (file.endsWith('.mdx') || file.endsWith('.md')) {
+      // Regular markdown file
+      editUrl = `/_arjun_edit/${file.replace(/\.(md|mdx)$/, '')}/_edit`;
+      fileName = require('path').basename(file, require('path').extname(file));
+      const fileDir = require('path').dirname(file);
+      displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
+    } else {
+      // Fallback
+      editUrl = `/_arjun_edit/${file.replace(/\.(md|mdx)$/, '')}/_edit`;
+      fileName = require('path').basename(file, require('path').extname(file));
+      const fileDir = require('path').dirname(file);
+      displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
+    }
     
     return `
       <div class="file-item">

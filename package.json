@@ -1,6 +1,6 @@
 {
   "name": "arjun-editor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A plug-and-play dev-only markdown editor for Next.js, SvelteKit, and Astro apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -27,6 +27,11 @@
       "import": "./dist/utils/widget-injector.js",
       "require": "./dist/utils/widget-injector.cjs",
       "types": "./dist/utils/widget-injector.d.ts"
+    },
+    "./widget": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
     },
     "./nextjs": {
       "import": "./dist/adapters/nextjs.js",
@@ -86,6 +91,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
@@ -95,7 +101,8 @@
   "peerDependencies": {
     "next": ">=13.0.0",
     "@sveltejs/kit": ">=1.0.0",
-    "astro": ">=3.0.0"
+    "astro": ">=3.0.0",
+    "react": ">=16.8.0"
   },
   "peerDependenciesMeta": {
     "next": {
@@ -105,6 +112,9 @@
       "optional": true
     },
     "astro": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   },
