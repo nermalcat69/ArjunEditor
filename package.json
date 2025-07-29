@@ -1,6 +1,6 @@
 {
   "name": "arjun-editor",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A plug-and-play dev-only markdown editor for Next.js, SvelteKit, and Astro apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,43 +9,43 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
     "./auto": {
-      "import": "./dist/auto-setup.js",
-      "require": "./dist/auto-setup.cjs",
+      "import": "./dist/auto-setup.mjs",
+      "require": "./dist/auto-setup.js",
       "types": "./dist/auto-setup.d.ts"
     },
     "./cli": {
-      "import": "./dist/cli.js",
-      "require": "./dist/cli.cjs",
+      "import": "./dist/cli.mjs",
+      "require": "./dist/cli.js",
       "types": "./dist/cli.d.ts"
     },
     "./utils/widget-injector": {
-      "import": "./dist/utils/widget-injector.js",
-      "require": "./dist/utils/widget-injector.cjs",
+      "import": "./dist/utils/widget-injector.mjs",
+      "require": "./dist/utils/widget-injector.js",
       "types": "./dist/utils/widget-injector.d.ts"
     },
     "./widget": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
     "./nextjs": {
-      "import": "./dist/adapters/nextjs.js",
-      "require": "./dist/adapters/nextjs.cjs",
+      "import": "./dist/adapters/nextjs.mjs",
+      "require": "./dist/adapters/nextjs.js",
       "types": "./dist/adapters/nextjs.d.ts"
     },
     "./sveltekit": {
-      "import": "./dist/adapters/sveltekit.js",
-      "require": "./dist/adapters/sveltekit.cjs",
+      "import": "./dist/adapters/sveltekit.mjs",
+      "require": "./dist/adapters/sveltekit.js",
       "types": "./dist/adapters/sveltekit.d.ts"
     },
     "./astro": {
-      "import": "./dist/adapters/astro.js",
-      "require": "./dist/adapters/astro.cjs",
+      "import": "./dist/adapters/astro.mjs",
+      "require": "./dist/adapters/astro.js",
       "types": "./dist/adapters/astro.d.ts"
     }
   },

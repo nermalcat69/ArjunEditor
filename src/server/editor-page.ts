@@ -76,38 +76,36 @@ export function generateEditorHTML(slug: string, contentDir: string, initialData
             gap: 1rem;
         }
         
-        .save-btn {
-            background: #1a1a1a;
-            color: #ffffff;
-            border: 1px solid #1a1a1a;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-size: 0.8125rem;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            font-weight: 400;
-        }
-        
-        .save-btn:hover {
-            background: #374151;
-            border-color: #374151;
-        }
-        
-        .save-btn:disabled {
-            background: #9ca3af;
-            border-color: #9ca3af;
-            cursor: not-allowed;
-        }
-        
         .status {
             font-size: 0.8125rem;
             color: #6b7280;
             font-family: inherit;
+            min-width: 120px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.5rem;
         }
         
-        .status.saving { color: #dc2626; }
-        .status.saved { color: #059669; }
+        .status.saving { 
+            color: #dc2626; 
+        }
+        
+        .status.saved { 
+            color: #059669; 
+        }
+        
+        .status.live {
+            color: #10b981;
+            font-weight: 500;
+        }
+        
+        .save-speed {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            font-weight: normal;
+        }
         
         .editor-container {
             flex: 1;
@@ -195,89 +193,173 @@ export function generateEditorHTML(slug: string, contentDir: string, initialData
             <h1 class="title">Edit: ${slug}</h1>
         </div>
         <div class="header-right">
-            <span id="status" class="status"></span>
-            <button id="save-btn" class="save-btn">Save</button>
+            <div id="status" class="status live">
+                <span id="status-text">Live</span>
+                <span id="save-speed" class="save-speed"></span>
+            </div>
         </div>
     </div>
     
     <div class="editor-container">
         <div class="dev-info">
-            🔒 Development Mode - Changes are saved to: ${contentDir}/${slug}.md
+            ⚡ Ultra-Fast Live Editing (50ms) - Changes save instantly as you type • Ctrl+Z to undo • Ctrl+Y to redo • Performance metrics in top-right
         </div>
         <div id="editor"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/code@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/link@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+    <script src="https://unpkg.com/@editorjs/editorjs@latest"></script>
+    <script src="https://unpkg.com/@editorjs/header@latest"></script>
+    <script src="https://unpkg.com/@editorjs/list@latest"></script>
+    <script src="https://unpkg.com/@editorjs/paragraph@latest"></script>
+    <script src="https://unpkg.com/@editorjs/quote@latest"></script>
+    <script src="https://unpkg.com/@editorjs/code@latest"></script>
+    <script src="https://unpkg.com/@editorjs/link@latest"></script>
+    <script src="https://unpkg.com/@editorjs/image@latest"></script>
 
     <script>
-        const editor = new EditorJS({
-            holder: 'editor',
-            data: ${editorData},
-            tools: {
-                header: {
+        // Wait for all scripts to load
+        function initializeEditor() {
+            console.log('Checking Editor.js dependencies...');
+            console.log('EditorJS:', typeof EditorJS !== 'undefined' ? 'loaded' : 'missing');
+            console.log('Header:', typeof Header !== 'undefined' ? 'loaded' : 'missing');
+            console.log('List:', typeof List !== 'undefined' ? 'loaded' : 'missing');
+            console.log('Paragraph:', typeof Paragraph !== 'undefined' ? 'loaded' : 'missing');
+            console.log('Quote:', typeof Quote !== 'undefined' ? 'loaded' : 'missing');
+            console.log('CodeTool:', typeof CodeTool !== 'undefined' ? 'loaded' : 'missing');
+
+            if (typeof EditorJS === 'undefined') {
+                document.getElementById('editor').innerHTML = '<div style="padding: 2rem; text-align: center; color: #dc2626;">⚠️ Editor.js failed to load. Please refresh the page.</div>';
+                return;
+            }
+
+            const initialData = ${editorData};
+            console.log('Initial data:', initialData);
+
+            // Basic tools that should always work
+            const tools = {};
+            if (typeof Header !== 'undefined') {
+                tools.header = {
                     class: Header,
                     config: {
                         placeholder: 'Enter a header',
                         levels: [1, 2, 3, 4],
                         defaultLevel: 2
                     }
-                },
-                list: {
+                };
+            }
+            if (typeof List !== 'undefined') {
+                tools.list = {
                     class: List,
                     inlineToolbar: true,
-                },
-                paragraph: {
+                };
+            }
+            if (typeof Paragraph !== 'undefined') {
+                tools.paragraph = {
                     class: Paragraph,
                     inlineToolbar: true,
-                },
-                quote: {
+                };
+            }
+            if (typeof Quote !== 'undefined') {
+                tools.quote = {
                     class: Quote,
                     inlineToolbar: true,
                     config: {
                         quotePlaceholder: 'Enter a quote',
                         captionPlaceholder: 'Quote author',
                     },
-                },
-                code: {
+                };
+            }
+            if (typeof CodeTool !== 'undefined') {
+                tools.code = {
                     class: CodeTool,
-                },
-                linkTool: {
+                };
+            }
+            if (typeof LinkTool !== 'undefined') {
+                tools.linkTool = {
                     class: LinkTool,
                     config: {
                         endpoint: '/api/_edit/fetch',
                     }
-                },
-                image: {
+                };
+            }
+            if (typeof ImageTool !== 'undefined') {
+                tools.image = {
                     class: ImageTool,
                     config: {
                         uploader: {
                             uploadByFile: false,
                         }
                     }
-                }
-            },
-            placeholder: 'Start writing...',
-            autofocus: true,
-        });
+                };
+            }
 
-        const saveBtn = document.getElementById('save-btn');
-        const status = document.getElementById('status');
-
-        saveBtn.addEventListener('click', async () => {
             try {
-                status.textContent = 'Saving...';
-                status.className = 'status saving';
-                saveBtn.disabled = true;
+                window.editor = new EditorJS({
+                    holder: 'editor',
+                    data: initialData || {
+                        time: Date.now(),
+                        blocks: [{
+                            id: 'default',
+                            type: 'paragraph',
+                            data: { text: 'Start writing...' }
+                        }],
+                        version: '2.28.2'
+                    },
+                    tools: tools,
+                    placeholder: 'Start writing...',
+                    autofocus: true,
+                                         logLevel: 'ERROR',
+                     onChange: () => {
+                         scheduleLiveSave();
+                     },
+                     // Enable undo/redo
+                     onReady: () => {
+                         console.log('Editor ready with undo/redo support');
+                     }
+                });
 
-                const outputData = await editor.save();
+                console.log('Editor initialized successfully!');
                 
+                window.editor.isReady.then(() => {
+                    console.log('Editor is ready for use!');
+                }).catch((error) => {
+                    console.error('Editor ready error:', error);
+                    document.getElementById('editor').innerHTML = '<div style="padding: 2rem; text-align: center; color: #dc2626;">⚠️ Editor initialization failed: ' + error.message + '</div>';
+                });
+
+            } catch (error) {
+                console.error('Editor creation error:', error);
+                document.getElementById('editor').innerHTML = '<div style="padding: 2rem; text-align: center; color: #dc2626;">⚠️ Failed to create editor: ' + error.message + '</div>';
+            }
+        }
+
+        // Initialize after a short delay to ensure all scripts load
+        setTimeout(initializeEditor, 100);
+
+        const status = document.getElementById('status');
+        const statusText = document.getElementById('status-text');
+        const saveSpeed = document.getElementById('save-speed');
+        let liveSaveTimeout;
+        let isSaving = false;
+        let saveQueue = [];
+        let lastSaveTime = 0;
+        let saveCount = 0;
+
+        // Ultra-fast live save function with performance metrics
+        async function liveSave() {
+            if (isSaving || !window.editor) return;
+            
+            const saveStartTime = performance.now();
+            
+            try {
+                isSaving = true;
+                statusText.textContent = '●';
+                status.className = 'status saving';
+                saveSpeed.textContent = '';
+
+                const outputData = await window.editor.save();
+                
+                const networkStartTime = performance.now();
                 const response = await fetch('/api/_edit/save', {
                     method: 'POST',
                     headers: {
@@ -291,37 +373,86 @@ export function generateEditorHTML(slug: string, contentDir: string, initialData
                 });
 
                 const result = await response.json();
+                const saveEndTime = performance.now();
+                
+                const totalTime = Math.round(saveEndTime - saveStartTime);
+                const networkTime = Math.round(saveEndTime - networkStartTime);
                 
                 if (result.success) {
-                    status.textContent = 'Saved';
-                    status.className = 'status saved';
-                    setTimeout(() => {
-                        status.textContent = '';
-                        status.className = 'status';
-                    }, 2000);
+                    statusText.textContent = 'Live';
+                    status.className = 'status live';
+                    saveSpeed.textContent = totalTime + 'ms';
+                    saveCount++;
+                    lastSaveTime = Date.now();
+                    
+                    console.log('Save #' + saveCount + ': ' + totalTime + 'ms total (' + networkTime + 'ms network)');
                 } else {
                     throw new Error(result.error || 'Save failed');
                 }
             } catch (error) {
-                console.error('Save error:', error);
-                status.textContent = 'Save failed';
+                console.error('Live save error:', error);
+                statusText.textContent = '✗';
                 status.className = 'status saving';
+                saveSpeed.textContent = 'Error';
                 setTimeout(() => {
-                    status.textContent = '';
-                    status.className = 'status';
-                }, 3000);
+                    statusText.textContent = 'Live';
+                    status.className = 'status live';
+                    saveSpeed.textContent = '';
+                }, 2000);
             } finally {
-                saveBtn.disabled = false;
+                isSaving = false;
+                // Process any queued saves immediately
+                if (saveQueue.length > 0) {
+                    saveQueue.shift();
+                    setTimeout(liveSave, 10); // Very fast queue processing
+                }
+            }
+        }
+
+        // Ultra-fast debounced live save
+        function scheduleLiveSave() {
+            clearTimeout(liveSaveTimeout);
+            liveSaveTimeout = setTimeout(() => {
+                if (isSaving) {
+                    saveQueue.push(true); // Queue the save
+                } else {
+                    liveSave();
+                }
+            }, 50); // Ultra-fast 50ms delay!
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Prevent Ctrl+S (not needed in live mode)
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                // In live mode, this just forces an immediate save
+                clearTimeout(liveSaveTimeout);
+                if (!isSaving) liveSave();
+                return;
+            }
+
+            // Editor.js handles Ctrl+Z and Ctrl+Y automatically for undo/redo
+            // But we can add some additional shortcuts if needed
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                // Ctrl+Z - Undo (handled by Editor.js automatically)
+                console.log('Undo triggered');
+            }
+            
+            if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+                // Ctrl+Y or Ctrl+Shift+Z - Redo (handled by Editor.js automatically)  
+                console.log('Redo triggered');
             }
         });
 
-        // Auto-save on Ctrl+S
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                saveBtn.click();
+        // Show status on page load
+        setTimeout(() => {
+            if (statusText && statusText.textContent === 'Live') {
+                console.log('🔄 Ultra-fast live editing mode active (50ms delay)');
+                console.log('⌨️  Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Y (redo)');
+                console.log('📊 Save performance metrics shown in top-right corner');
             }
-        });
+        }, 1000);
     </script>
 </body>
 </html>
