@@ -13,6 +13,17 @@ interface CLIConfig {
   contentDir: string;
   port: number;
   host: string;
+  allowedExtensions: string[];
+  autoSave: boolean;
+  saveDelay: number;
+}
+
+interface UserConfig {
+  contentDir?: string;
+  port?: number;
+  allowedExtensions?: string[];
+  autoSave?: boolean;
+  saveDelay?: number;
 }
 
 // Check if port is available
@@ -47,35 +58,83 @@ async function findAvailablePort(startPort: number, host: string = 'localhost'):
   throw new Error(`No available ports found between ${startPort} and ${maxPort}`);
 }
 
+// Load config file if it exists
+function loadConfigFile(): UserConfig {
+  const configPaths = [
+    'arjun.config.js',
+    'arjun.config.mjs',
+    'arjun.config.ts',
+    '.arjunrc.js'
+  ];
+
+  for (const configPath of configPaths) {
+    if (fs.existsSync(configPath)) {
+      try {
+        // For .js/.mjs files, use require/import
+        if (configPath.endsWith('.js') || configPath.endsWith('.mjs')) {
+          const config = require(path.resolve(configPath));
+          return config.default || config;
+        }
+        // For .ts files, we'd need a TypeScript loader, skip for now
+        console.log(`⚠️  Found ${configPath} but TypeScript config files are not yet supported`);
+      } catch (error) {
+        console.log(`⚠️  Error loading ${configPath}:`, (error as Error).message);
+      }
+    }
+  }
+
+  return {};
+}
+
 // Parse command line arguments
 function parseArgs(): Omit<CLIConfig, 'port'> & { preferredPort: number } {
+  const config = loadConfigFile();
   const args = process.argv.slice(2);
-  let contentDir = '';
-  let preferredPort = 3456;
+  
+  let contentDir = config.contentDir || '';
+  let preferredPort = config.port || 3456;
   let host = 'localhost';
+  let allowedExtensions = config.allowedExtensions || ['.md', '.mdx'];
+  let autoSave = config.autoSave !== undefined ? config.autoSave : true;
+  let saveDelay = config.saveDelay || 50;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     
     if (arg === '--port' || arg === '-p') {
       preferredPort = parseInt(args[++i]) || 3456;
+    } else if (arg === '--content' || arg === '-c') {
+      contentDir = args[++i] || '';
+    } else if (arg === '--scan') {
+      // Handle --scan project-wide or --scan content-only
+      args[++i]; // consume next arg but handle in main()
     } else if (arg === '--help' || arg === '-h') {
       console.log(`
 arjun-editor - Dev-only markdown editor
 
-Usage: arjun-editor [directory] [options]
+Usage: arjun-editor [options]
 
 Options:
-  -p, --port <port>     Port number (default: 3456)
-  -h, --help            Show this help
+  -p, --port <port>       Port number (default: 3456)
+  -c, --content <dir>     Content directory (default: scan entire project)
+      --scan <mode>       Scan mode: project-wide (default) or content-only
+  -h, --help              Show this help
 
 Examples:
-  arjun-editor                    # Auto-detect content directory
-  arjun-editor ./docs             # Use specific directory
-  arjun-editor -p 4000            # Use specific port
-  arjun-editor ./blog -p 8080     # Directory + port
+  arjun-editor                        # Scan entire project
+  arjun-editor --content ./docs       # Use specific directory
+  arjun-editor --port 4000            # Use specific port
+  arjun-editor --scan content-only    # Only scan content directory
 
-Auto-detects content in: ./content, ./src/content, ./docs, ./posts, ./blog
+Configuration:
+  Create arjun.config.js in your project root:
+  export default {
+    contentDir: './content',
+    port: 3456,
+    allowedExtensions: ['.md', '.mdx'],
+    autoSave: true,
+    saveDelay: 50
+  }
       `);
       process.exit(0);
     } else if (!arg.startsWith('-')) {
@@ -83,11 +142,18 @@ Auto-detects content in: ./content, ./src/content, ./docs, ./posts, ./blog
     }
   }
 
-  return { contentDir, preferredPort, host: 'localhost' };
+  return { 
+    contentDir, 
+    preferredPort, 
+    host: 'localhost',
+    allowedExtensions,
+    autoSave,
+    saveDelay
+  };
 }
 
 // Auto-detect content directory - now scans entire project
-function findAllMarkdownFiles(rootDir: string = './'): string[] {
+function findAllMarkdownFiles(rootDir: string = './', allowedExtensions: string[] = ['.md', '.mdx']): string[] {
   const markdownFiles: string[] = [];
   
   function scanDirectory(dir: string) {
@@ -102,8 +168,11 @@ function findAllMarkdownFiles(rootDir: string = './'): string[] {
         if (stat.isDirectory() && !item.startsWith('.') && 
             !['node_modules', 'dist', 'build', '.next', 'out'].includes(item)) {
           scanDirectory(fullPath);
-        } else if (stat.isFile() && /\.(md|mdx)$/i.test(item)) {
-          markdownFiles.push(path.relative(rootDir, fullPath));
+        } else if (stat.isFile()) {
+          const fileExt = path.extname(item).toLowerCase();
+          if (allowedExtensions.includes(fileExt)) {
+            markdownFiles.push(path.relative(rootDir, fullPath));
+          }
         }
       }
     } catch (error) {
@@ -223,7 +292,7 @@ function createServer(config: CLIConfig, scanMode: string = 'content-directory')
       // File list page (home)
       if (pathname === '/' || pathname === '/index.html') {
         const files = scanMode === 'project-wide' 
-          ? findAllMarkdownFiles('./') 
+          ? findAllMarkdownFiles('./', config.allowedExtensions) 
           : getAllMarkdownFiles(config.contentDir);
         const html = generateFileListHTML(files, config, scanMode);
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -476,13 +545,29 @@ async function main() {
     process.exit(1);
   }
 
-  const { contentDir, preferredPort, host } = parseArgs();
+  const { contentDir, preferredPort, host, allowedExtensions, autoSave, saveDelay } = parseArgs();
+
+  // Check for --scan argument
+  const args = process.argv.slice(2);
+  const scanIndex = args.findIndex(arg => arg === '--scan');
+  let forcedScanMode = '';
+  if (scanIndex !== -1 && scanIndex + 1 < args.length) {
+    forcedScanMode = args[scanIndex + 1];
+  }
 
   // If contentDir is specified, use it; otherwise scan entire project
   let workingDir = './';
   let scanMode = 'project-wide';
   
-  if (contentDir && fs.existsSync(path.resolve(contentDir))) {
+  if (forcedScanMode === 'content-only' && contentDir && fs.existsSync(path.resolve(contentDir))) {
+    workingDir = contentDir;
+    scanMode = 'content-directory';
+    console.log(`📁 Using content directory: ${contentDir} (forced content-only mode)`);
+  } else if (forcedScanMode === 'project-wide') {
+    workingDir = './';
+    scanMode = 'project-wide';
+    console.log(`📁 Scanning entire project for markdown files (forced project-wide mode)...`);
+  } else if (contentDir && fs.existsSync(path.resolve(contentDir))) {
     workingDir = contentDir;
     scanMode = 'content-directory';
     console.log(`📁 Using content directory: ${contentDir}`);
@@ -505,7 +590,10 @@ async function main() {
   const config: CLIConfig = {
     contentDir: workingDir,
     port,
-    host
+    host,
+    allowedExtensions,
+    autoSave,
+    saveDelay
   };
 
   const server = createServer(config, scanMode);
