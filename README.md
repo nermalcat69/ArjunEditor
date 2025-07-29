@@ -1,234 +1,69 @@
-# dev-md-editor
+# arjun-editor
 
-A plug-and-play dev-only markdown editor for Next.js, SvelteKit, and Astro apps.
+A localhost only markdown editor for Next.js, SvelteKit, and Astro apps.
 
-## Features
+Specifically for people who don't want to use a CMS just for editing.
 
-- Zero-config CLI tool
-- Beautiful Editor.js interface  
-- Framework-agnostic standalone server
-- **Floating edit widget** on content pages
-- Dev-only with strict production protection
-- Auto port detection (finds available ports)
-- Smart file detection
-- Localhost-only for security
-- Preserves frontmatter and file structure
-
-## Ultra-Simple Setup
-
-### Option 1: CLI Tool (Recommended)
+## Setup
 
 ```bash
-pnpm add -D dev-md-editor
+pnpm add -D arjun-editor
 ```
 
-Add to your `package.json`:
-
+Add to `package.json`:
 ```json
 {
   "scripts": {
-    "edit:start": "dev-md-editor"
+    "edit:start": "arjun-editor"
   }
 }
-```
-
-Then run:
-
-```bash
-pnpm run edit:start
-```
-
-That's it! 
-- Visit `http://localhost:3456` to browse all markdown files
-- Go to `http://localhost:3456/[slug]/_edit` to edit any file
-- **Visit your website pages to see the floating edit widget!**
-- If port 3456 is busy, it automatically finds the next available port
-
-**CLI Options:**
-```bash
-pnpm run edit:start --content ./docs --port 4000
-dev-md-editor --help
-```
-
-### Option 2: Auto-Setup (Framework Integration)
-
-For integrating into your existing dev server:
-
-```ts
-// In any file (layout, main, etc.)
-import 'dev-md-editor/auto';
-```
-
-### Option 3: One-Line Setup
-
-```ts
-import { setup } from 'dev-md-editor';
-setup('./content');
-```
-
-### Option 4: Manual Setup (Full Control)
-
-#### Next.js
-
-Create `middleware.ts`:
-
-```tsx
-import { createEditorMiddleware } from 'dev-md-editor/nextjs';
-import { NextRequest, NextResponse } from 'next/server';
-
-const editorMiddleware = createEditorMiddleware();
-
-export async function middleware(request: NextRequest) {
-  if (process.env.NODE_ENV !== 'production') {
-    const editorResponse = await editorMiddleware(request);
-    if (editorResponse?.status !== 200) {
-      return editorResponse;
-    }
-  }
-  return NextResponse.next();
-}
-
-export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-};
-```
-
-Mount in `app/layout.tsx`:
-
-```tsx
-import { mountMarkdownEditor } from 'dev-md-editor/nextjs';
-
-if (process.env.NODE_ENV !== 'production') {
-  mountMarkdownEditor({ contentDir: './content' });
-}
-
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}
-```
-
-#### SvelteKit
-
-In `src/hooks.server.ts`:
-
-```ts
-import { createEditorHandle, mountMarkdownEditor } from 'dev-md-editor/sveltekit';
-import { sequence } from '@sveltejs/kit/hooks';
-
-if (process.env.NODE_ENV !== 'production') {
-  mountMarkdownEditor({ contentDir: './content' });
-}
-
-export const handle = sequence(createEditorHandle());
-```
-
-#### Astro
-
-In `astro.config.mjs`:
-
-```js
-import { markdownEditor } from 'dev-md-editor/astro';
-
-export default defineConfig({
-  integrations: [
-    markdownEditor({ contentDir: './content' }),
-  ],
-});
 ```
 
 ## Usage
 
-### CLI Mode (Recommended)
+Start the editor:
 ```bash
 pnpm run edit:start
-```
-- Browse all files at auto-detected port (starts from 3456)
-- Edit specific files at `http://localhost:[port]/[slug]/_edit`
-- **Floating widget appears on your website pages automatically**
-- Automatically finds available ports if default is busy
-
-### Framework Integration Mode
-Visit your dev server at `http://localhost:3000/[slug]/_edit`:
-- `/hello-world/_edit` edits `content/hello-world.md`
-- `/blog/my-post/_edit` edits `content/blog/my-post.md`
-
-## Floating Edit Widget
-
-When the editor server is running, a **beautiful floating widget** automatically appears on your website pages:
-
-- **Auto-detection**: Detects if the editor is running and shows the widget
-- **Smart positioning**: Floats in bottom-right, auto-hides after 10 seconds
-- **Hover to expand**: Compact view when collapsed, full view on hover
-- **One-click editing**: Click to open the editor in a new tab
-- **Dev-only**: Only appears in development mode
-
-### Adding Widget to Your Pages
-
-The widget auto-detects the editor server, but you can also manually add it:
-
-#### Next.js
-```tsx
-import { injectWidgetIntoHTML } from 'dev-md-editor/nextjs';
-
-// In your component or layout
-const htmlWithWidget = injectWidgetIntoHTML(originalHtml);
+# or
+pnpm start  
+# or
+arjun-editor
 ```
 
-#### Manual Script Injection
-```html
-<script>
-  // Add this to any page where you want the edit widget
-  // Widget will auto-detect running editor and show itself
-</script>
-```
+**That's it!** Visit your website - you'll see a floating edit widget on every page.
 
-## Configuration
+## Commands
 
-### CLI Configuration
 ```bash
-dev-md-editor --content ./docs --port 4000
+arjun-editor              # Auto-detect content directory
+arjun-editor ./docs       # Use specific directory  
+arjun-editor -p 4000      # Use specific port
+arjun-editor ./blog -p 8080   # Directory + port
 ```
 
-### Framework Configuration
+## Alternative Setup Options
+
+**One-line setup:**
 ```ts
-import { setup } from 'dev-md-editor';
-
-setup('./content', {
-  editorPath: '/edit',              // URL suffix (default: '/_edit')
-  allowedExtensions: ['.md']        // File extensions (default: ['.md', '.mdx'])
-});
+import { setup } from 'arjun-editor';
+setup('./content');
 ```
 
-## Why CLI Mode?
+**Auto-setup:**
+```ts
+import 'arjun-editor/auto';
+```
 
-- **Zero framework coupling**: Works with any project
-- **Instant setup**: No middleware or configuration needed
-- **File browser**: See all your markdown files at once
-- **Standalone**: Doesn't interfere with your main dev server
-- **Auto port detection**: Never conflicts with existing servers
-- **Floating widget**: Edit button appears on your actual website
-- **Perfect for content teams**: Non-developers can easily edit content
+**Manual framework integration:**
+```ts
+// Next.js
+import { createEditorMiddleware } from 'arjun-editor/nextjs';
 
-## Security Features
+// SvelteKit  
+import { createEditorHandle } from 'arjun-editor/sveltekit';
 
-- **Development-only**: Multiple production environment checks
-- **Localhost-only**: Forces localhost binding for security
-- **File system isolation**: Only accesses specified contentDir
-- **Production protection**: Exits immediately in production environments
-- **No external access**: Cannot be accessed from other machines
+// Astro
+import { markdownEditor } from 'arjun-editor/astro';
+```
 
-## Production Safety
-
-This tool includes multiple layers of production protection:
-- Checks `NODE_ENV=production`
-- Detects Vercel, Netlify, Heroku, Railway, Render, AWS, Cloudflare Pages
-- Exits with error code 1 if production environment detected
-- All framework integrations include dev-only guards
-
-## License
-
-MIT
+ps: i made this for personal usage only because not everybody likes stuff like this :c

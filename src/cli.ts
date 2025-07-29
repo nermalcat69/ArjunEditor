@@ -50,41 +50,32 @@ async function findAvailablePort(startPort: number, host: string = 'localhost'):
 // Parse command line arguments
 function parseArgs(): Omit<CLIConfig, 'port'> & { preferredPort: number } {
   const args = process.argv.slice(2);
-  let contentDir = './content';
+  let contentDir = '';
   let preferredPort = 3456;
   let host = 'localhost';
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     
-    if (arg === '--content' || arg === '-c') {
-      contentDir = args[++i];
-    } else if (arg === '--port' || arg === '-p') {
+    if (arg === '--port' || arg === '-p') {
       preferredPort = parseInt(args[++i]) || 3456;
-    } else if (arg === '--host' || arg === '-h') {
-      host = args[++i];
-      // Force localhost only for security
-      if (host !== 'localhost' && host !== '127.0.0.1') {
-        console.warn('⚠️  Security: Host forced to localhost for development safety');
-        host = 'localhost';
-      }
-    } else if (arg === '--help') {
+    } else if (arg === '--help' || arg === '-h') {
       console.log(`
-dev-md-editor CLI
+arjun-editor - Dev-only markdown editor
 
-Usage: dev-md-editor [options]
+Usage: arjun-editor [directory] [options]
 
 Options:
-  -c, --content <dir>   Content directory (default: ./content)
-  -p, --port <port>     Preferred port number (default: 3456)
-  --help                Show this help message
+  -p, --port <port>     Port number (default: 3456)
+  -h, --help            Show this help
 
 Examples:
-  dev-md-editor
-  dev-md-editor --content ./docs --port 4000
-  dev-md-editor -c ./blog -p 8080
+  arjun-editor                    # Auto-detect content directory
+  arjun-editor ./docs             # Use specific directory
+  arjun-editor -p 4000            # Use specific port
+  arjun-editor ./blog -p 8080     # Directory + port
 
-Note: Always runs on localhost only for security.
+Auto-detects content in: ./content, ./src/content, ./docs, ./posts, ./blog
       `);
       process.exit(0);
     } else if (!arg.startsWith('-')) {
@@ -260,7 +251,7 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>dev-md-editor</title>
+    <title>arjun-editor</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -320,25 +311,18 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
             border: 1px solid #b3d9ff;
             font-size: 14px;
         }
-        .widget-info code {
-            background: rgba(0,0,0,0.1);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="dev-only">
-            🔒 Development Mode Only - This editor is automatically disabled in production
+            🔒 Development Mode Only - Automatically disabled in production
         </div>
         <div class="widget-info">
-            💡 <strong>Pro tip:</strong> Visit your website pages while this editor is running to see the floating edit widget! 
-            Add <code>&lt;script&gt;/* widget script */&lt;/script&gt;</code> to your pages for instant edit access.
+            💡 <strong>Pro tip:</strong> Visit your website pages to see the floating edit widget!
         </div>
         <div class="header">
-            <h1>dev-md-editor</h1>
+            <h1>arjun-editor</h1>
             <p class="subtitle">Content directory: ${config.contentDir}</p>
             <p class="subtitle">Server running on port: ${config.port}</p>
         </div>
@@ -365,21 +349,20 @@ async function main() {
     process.env.RAILWAY_ENVIRONMENT === 'production';
 
   if (isProduction) {
-    console.error('🚫 SECURITY: dev-md-editor is disabled in production environments');
+    console.error('🚫 SECURITY: arjun-editor is disabled in production environments');
     console.error('   This tool is for development only and should never run in production');
     process.exit(1);
   }
 
   const { contentDir, preferredPort, host } = parseArgs();
   
-  // Auto-detect content directory if default doesn't exist
+  // Auto-detect content directory if not specified
   let finalContentDir = contentDir;
-  if (contentDir === './content' && !fs.existsSync(path.resolve(contentDir))) {
-    const detected = findContentDir();
-    if (detected !== contentDir) {
-      finalContentDir = detected;
-      console.log(`📁 Auto-detected content directory: ${finalContentDir}`);
-    }
+  if (!contentDir) {
+    finalContentDir = findContentDir();
+    console.log(`📁 Auto-detected content directory: ${finalContentDir}`);
+  } else if (!fs.existsSync(path.resolve(contentDir))) {
+    console.log(`📁 Content directory "${contentDir}" not found, creating it...`);
   }
 
   // Ensure content directory exists
@@ -406,16 +389,11 @@ async function main() {
   
   server.listen(config.port, config.host, () => {
     console.log(`
-🚀 dev-md-editor is running!
+🚀 arjun-editor is running!
 
 📁 Content directory: ${config.contentDir}
-🌐 Server: http://${config.host}:${config.port}
-✏️  Edit files: http://${config.host}:${config.port}/[slug]/_edit
-🎯 Widget detection: http://${config.host}:${config.port}/api/_edit/ping
-
-Examples:
-  http://${config.host}:${config.port}/hello-world/_edit
-  http://${config.host}:${config.port}/blog/my-post/_edit
+🌐 Editor dashboard: http://${config.host}:${config.port}
+✏️  Edit any file: http://${config.host}:${config.port}/[filename]/_edit
 
 💡 Visit your website pages to see the floating edit widget!
 🔒 Development mode only - automatically disabled in production
@@ -425,7 +403,7 @@ Press Ctrl+C to stop
 
   // Graceful shutdown
   process.on('SIGINT', () => {
-    console.log('\n👋 Shutting down dev-md-editor...');
+    console.log('\n👋 Shutting down arjun-editor...');
     server.close(() => {
       process.exit(0);
     });

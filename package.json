@@ -1,11 +1,11 @@
 {
-  "name": "dev-md-editor",
+  "name": "arjun-editor",
   "version": "1.0.0",
   "description": "A plug-and-play dev-only markdown editor for Next.js, SvelteKit, and Astro apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "dev-md-editor": "dist/cli.js"
+    "arjun-editor": "dist/cli.js"
   },
   "exports": {
     ".": {
@@ -56,7 +56,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "prepublishOnly": "pnpm build",
-    "edit:start": "node dist/cli.js"
+    "edit:start": "node dist/cli.js",
+    "start": "node dist/cli.js"
   },
   "keywords": [
     "markdown",
@@ -109,12 +110,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nermalcat69/dev-md-editor.git"
+    "url": "https://github.com/nermalcat69/arjun-editor.git"
   },
   "bugs": {
-    "url": "https://github.com/nermalcat69/dev-md-editor/issues"
+    "url": "https://github.com/nermalcat69/arjun-editor/issues"
   },
-  "homepage": "https://github.com/nermalcat69/dev-md-editor#readme",
+  "homepage": "https://github.com/nermalcat69/arjun-editor#readme",
   "engines": {
     "node": ">=16.0.0"
   }
