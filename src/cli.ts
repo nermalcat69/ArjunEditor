@@ -237,10 +237,17 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
   const fileList = files.map(file => {
     const slug = file.replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
     const editUrl = `/${slug}/_edit`;
+    const fileName = path.basename(file, path.extname(file));
+    const fileDir = path.dirname(file);
+    const displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
+    
     return `
       <div class="file-item">
-        <h3>${file}</h3>
-        <a href="${editUrl}" target="_blank" class="edit-btn">Edit</a>
+        <div class="file-info">
+          <h3 class="file-name">${fileName}</h3>
+          <p class="file-path">${file}</p>
+        </div>
+        <a href="${editUrl}" class="edit-btn">Edit</a>
       </div>
     `;
   }).join('');
@@ -253,81 +260,167 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>arjun-editor</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+            background: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.6;
             padding: 2rem;
+            min-height: 100vh;
         }
-        .container { max-width: 800px; margin: 0 auto; }
+        
+        .container { 
+            max-width: 900px; 
+            margin: 0 auto; 
+        }
+        
         .header {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
+            margin-bottom: 3rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e5e5e5;
         }
-        h1 { color: #333; margin-bottom: 0.5rem; }
-        .subtitle { color: #666; }
-        .files { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        
+        h1 { 
+            font-size: 1.5rem;
+            font-weight: 400;
+            color: #1a1a1a;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+        
+        .subtitle { 
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-family: inherit;
+        }
+        
+        .stats {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            color: #374151;
+        }
+        
+        .files { 
+            background: #ffffff;
+            border: 1px solid #e5e5e5;
+            border-radius: 4px;
+        }
+        
         .file-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem 2rem;
-            border-bottom: 1px solid #eee;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.15s ease;
         }
-        .file-item:last-child { border-bottom: none; }
-        h3 { color: #333; font-weight: 500; }
+        
+        .file-item:hover {
+            background: #f9fafb;
+        }
+        
+        .file-item:last-child { 
+            border-bottom: none; 
+        }
+        
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .file-name { 
+            color: #1a1a1a;
+            font-weight: 400;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .file-path {
+            color: #6b7280;
+            font-size: 0.8125rem;
+            font-family: inherit;
+        }
+        
         .edit-btn {
-            background: #007bff;
-            color: white;
+            background: #1a1a1a;
+            color: #ffffff;
             padding: 0.5rem 1rem;
+            border: 1px solid #1a1a1a;
             border-radius: 4px;
             text-decoration: none;
-            font-size: 0.9rem;
-            transition: background 0.2s;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            transition: all 0.15s ease;
+            font-weight: 400;
+            white-space: nowrap;
         }
-        .edit-btn:hover { background: #0056b3; }
+        
+        .edit-btn:hover { 
+            background: #374151;
+            border-color: #374151;
+        }
+        
         .empty {
-            padding: 3rem 2rem;
+            padding: 4rem 2rem;
             text-align: center;
-            color: #666;
+            color: #6b7280;
+            font-style: italic;
         }
-        .dev-only {
-            background: #fff3cd;
-            color: #856404;
-            padding: 1rem 2rem;
+        
+        .dev-info {
+            background: #f0f9ff;
+            border: 1px solid #e0f2fe;
+            color: #0c4a6e;
+            padding: 1rem 1.5rem;
             border-radius: 4px;
             margin-bottom: 2rem;
-            border: 1px solid #ffeaa7;
+            font-size: 0.875rem;
         }
-        .widget-info {
-            background: #e7f3ff;
-            color: #0066cc;
-            padding: 1rem 2rem;
-            border-radius: 4px;
-            margin-bottom: 2rem;
-            border: 1px solid #b3d9ff;
-            font-size: 14px;
+        
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e5e5;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.8125rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="dev-only">
-            🔒 Development Mode Only - Automatically disabled in production
+        <div class="dev-info">
+            🔒 Development Mode - This editor is automatically disabled in production
         </div>
-        <div class="widget-info">
-            💡 <strong>Pro tip:</strong> Visit your website pages to see the floating edit widget!
-        </div>
+        
         <div class="header">
             <h1>arjun-editor</h1>
             <p class="subtitle">Content directory: ${config.contentDir}</p>
-            <p class="subtitle">Server running on port: ${config.port}</p>
+            <p class="subtitle">Server: http://localhost:${config.port}</p>
         </div>
+        
+        ${files.length > 0 ? `
+        <div class="stats">
+            ${files.length} markdown file${files.length === 1 ? '' : 's'} found
+        </div>
+        ` : ''}
+        
         <div class="files">
-            ${files.length > 0 ? fileList : '<div class="empty">No markdown files found</div>'}
+            ${files.length > 0 ? fileList : '<div class="empty">No markdown files found in this directory</div>'}
+        </div>
+        
+        <div class="footer">
+            Visit your website pages to see the floating edit widget
         </div>
     </div>
 </body>

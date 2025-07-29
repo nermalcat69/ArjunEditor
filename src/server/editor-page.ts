@@ -1,276 +1,329 @@
 import { EditorData } from '../types';
 
-export function generateEditorHTML(
-  slug: string, 
-  contentDir: string, 
-  initialData?: EditorData
-): string {
-  return `<!DOCTYPE html>
+export function generateEditorHTML(slug: string, contentDir: string, initialData?: EditorData): string {
+  const editorData = initialData ? JSON.stringify(initialData) : 'null';
+  
+  return `
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editing ${slug} - dev-md-editor</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/@editorjs/editorjs@latest"></script>
-    <script src="https://unpkg.com/@editorjs/header@latest"></script>
-    <script src="https://unpkg.com/@editorjs/list@latest"></script>
-    <script src="https://unpkg.com/@editorjs/paragraph@latest"></script>
-    <script src="https://unpkg.com/@editorjs/quote@latest"></script>
-    <script src="https://unpkg.com/@editorjs/code@latest"></script>
-    <script src="https://unpkg.com/@editorjs/link@latest"></script>
+    <title>Edit: ${slug}</title>
     <style>
-        body {
-            margin: 0;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background-color: #f8f9fa;
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
         }
-        .codex-editor__redactor {
-            padding-bottom: 200px !important;
+        
+        body { 
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+            background: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        kbd {
-            background-color: #e9ecef;
-            border-radius: 3px;
-            border: 1px solid #adb5bd;
-            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-            color: #495057;
-            display: inline-block;
-            font-size: 0.8em;
-            font-weight: 700;
-            line-height: 1;
-            padding: 2px 4px;
-            white-space: nowrap;
+        
+        .header {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .back-btn {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            color: #374151;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            transition: all 0.15s ease;
+            font-weight: 400;
+        }
+        
+        .back-btn:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+        
+        .title {
+            font-size: 1rem;
+            font-weight: 400;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .save-btn {
+            background: #1a1a1a;
+            color: #ffffff;
+            border: 1px solid #1a1a1a;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-weight: 400;
+        }
+        
+        .save-btn:hover {
+            background: #374151;
+            border-color: #374151;
+        }
+        
+        .save-btn:disabled {
+            background: #9ca3af;
+            border-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            font-size: 0.8125rem;
+            color: #6b7280;
+            font-family: inherit;
+        }
+        
+        .status.saving { color: #dc2626; }
+        .status.saved { color: #059669; }
+        
+        .editor-container {
+            flex: 1;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        #editor {
+            border: 1px solid #e5e5e5;
+            border-radius: 4px;
+            min-height: 500px;
+            background: #ffffff;
+        }
+        
+        /* Override Editor.js styles for minimal theme */
+        .ce-block__content,
+        .ce-toolbar__content {
+            max-width: none !important;
+        }
+        
+        .ce-toolbar {
+            background: #ffffff !important;
+            border: 1px solid #e5e5e5 !important;
+            border-radius: 4px !important;
+        }
+        
+        .ce-toolbar__plus,
+        .ce-toolbar__settings-btn {
+            color: #374151 !important;
+            background: #ffffff !important;
+        }
+        
+        .ce-toolbar__plus:hover,
+        .ce-toolbar__settings-btn:hover {
+            background: #f9fafb !important;
+        }
+        
+        .ce-popover {
+            background: #ffffff !important;
+            border: 1px solid #e5e5e5 !important;
+            border-radius: 4px !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .ce-popover__item {
+            color: #374151 !important;
+        }
+        
+        .ce-popover__item:hover {
+            background: #f9fafb !important;
+        }
+        
+        .ce-block {
+            color: #1a1a1a !important;
+        }
+        
+        .ce-paragraph {
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
+            line-height: 1.6 !important;
+        }
+        
+        .ce-header {
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
+            font-weight: 600 !important;
+        }
+        
+        .dev-info {
+            background: #f0f9ff;
+            border: 1px solid #e0f2fe;
+            color: #0c4a6e;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div class="header">
+        <div class="header-left">
+            <a href="/" class="back-btn">← All Posts</a>
+            <h1 class="title">Edit: ${slug}</h1>
+        </div>
+        <div class="header-right">
+            <span id="status" class="status"></span>
+            <button id="save-btn" class="save-btn">Save</button>
+        </div>
+    </div>
     
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
-        
-        const EditorUI = ({ initialData, slug, contentDir, apiEndpoint = '/api/_edit/save' }) => {
-            const ejInstance = useRef(null);
-            const [isSaving, setIsSaving] = useState(false);
-            const [saveStatus, setSaveStatus] = useState('');
+    <div class="editor-container">
+        <div class="dev-info">
+            🔒 Development Mode - Changes are saved to: ${contentDir}/${slug}.md
+        </div>
+        <div id="editor"></div>
+    </div>
 
-            useEffect(() => {
-                if (!ejInstance.current) {
-                    ejInstance.current = new EditorJS({
-                        holder: 'editorjs',
-                        tools: {
-                            header: {
-                                class: Header,
-                                config: {
-                                    placeholder: 'Enter a header',
-                                    levels: [1, 2, 3, 4, 5, 6],
-                                    defaultLevel: 2
-                                }
-                            },
-                            list: {
-                                class: List,
-                                inlineToolbar: true,
-                                config: {
-                                    defaultStyle: 'unordered'
-                                }
-                            },
-                            paragraph: {
-                                class: Paragraph,
-                                inlineToolbar: true,
-                            },
-                            quote: {
-                                class: Quote,
-                                inlineToolbar: true,
-                                config: {
-                                    quotePlaceholder: 'Enter a quote',
-                                    captionPlaceholder: 'Quote\\'s author',
-                                },
-                            },
-                            code: {
-                                class: Code,
-                                config: {
-                                    placeholder: 'Enter code'
-                                }
-                            },
-                            linkTool: {
-                                class: LinkTool,
-                                config: {
-                                    endpoint: '/api/_edit/fetchUrl',
-                                }
-                            }
-                        },
-                        data: initialData || {
-                            time: Date.now(),
-                            blocks: [],
-                            version: '2.28.2'
-                        },
-                        placeholder: 'Start writing your content...',
-                        minHeight: 300,
-                    });
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/code@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/link@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+
+    <script>
+        const editor = new EditorJS({
+            holder: 'editor',
+            data: ${editorData},
+            tools: {
+                header: {
+                    class: Header,
+                    config: {
+                        placeholder: 'Enter a header',
+                        levels: [1, 2, 3, 4],
+                        defaultLevel: 2
+                    }
+                },
+                list: {
+                    class: List,
+                    inlineToolbar: true,
+                },
+                paragraph: {
+                    class: Paragraph,
+                    inlineToolbar: true,
+                },
+                quote: {
+                    class: Quote,
+                    inlineToolbar: true,
+                    config: {
+                        quotePlaceholder: 'Enter a quote',
+                        captionPlaceholder: 'Quote author',
+                    },
+                },
+                code: {
+                    class: CodeTool,
+                },
+                linkTool: {
+                    class: LinkTool,
+                    config: {
+                        endpoint: '/api/_edit/fetch',
+                    }
+                },
+                image: {
+                    class: ImageTool,
+                    config: {
+                        uploader: {
+                            uploadByFile: false,
+                        }
+                    }
                 }
+            },
+            placeholder: 'Start writing...',
+            autofocus: true,
+        });
 
-                return () => {
-                    if (ejInstance.current && ejInstance.current.destroy) {
-                        ejInstance.current.destroy();
-                        ejInstance.current = null;
-                    }
-                };
-            }, [initialData]);
+        const saveBtn = document.getElementById('save-btn');
+        const status = document.getElementById('status');
 
-            const handleSave = async () => {
-                if (!ejInstance.current) return;
+        saveBtn.addEventListener('click', async () => {
+            try {
+                status.textContent = 'Saving...';
+                status.className = 'status saving';
+                saveBtn.disabled = true;
 
-                setIsSaving(true);
-                setSaveStatus('');
+                const outputData = await editor.save();
+                
+                const response = await fetch('/api/_edit/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        slug: '${slug}',
+                        content: outputData,
+                        contentDir: '${contentDir}'
+                    }),
+                });
 
-                try {
-                    const outputData = await ejInstance.current.save();
-                    
-                    const response = await fetch(apiEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            slug,
-                            content: outputData,
-                            contentDir,
-                        }),
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        setSaveStatus('✅ Saved successfully!');
-                    } else {
-                        setSaveStatus(\`❌ Error: \${result.error || 'Unknown error'}\`);
-                    }
-                } catch (error) {
-                    setSaveStatus(\`❌ Error: \${error.message}\`);
-                } finally {
-                    setIsSaving(false);
-                    setTimeout(() => setSaveStatus(''), 3000);
+                const result = await response.json();
+                
+                if (result.success) {
+                    status.textContent = 'Saved';
+                    status.className = 'status saved';
+                    setTimeout(() => {
+                        status.textContent = '';
+                        status.className = 'status';
+                    }, 2000);
+                } else {
+                    throw new Error(result.error || 'Save failed');
                 }
-            };
+            } catch (error) {
+                console.error('Save error:', error);
+                status.textContent = 'Save failed';
+                status.className = 'status saving';
+                setTimeout(() => {
+                    status.textContent = '';
+                    status.className = 'status';
+                }, 3000);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        });
 
-            return React.createElement('div', {
-                style: { 
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    maxWidth: '800px',
-                    margin: '0 auto',
-                    padding: '20px'
-                }
-            }, [
-                React.createElement('div', {
-                    key: 'header',
-                    style: {
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '20px',
-                        padding: '15px',
-                        backgroundColor: '#f8f9fa',
-                        borderRadius: '8px',
-                        border: '1px solid #e9ecef'
-                    }
-                }, [
-                    React.createElement('div', { key: 'title' }, [
-                        React.createElement('h1', {
-                            key: 'h1',
-                            style: { margin: 0, fontSize: '1.5rem', color: '#212529' }
-                        }, \`Editing: \${slug}\`),
-                        React.createElement('p', {
-                            key: 'p',
-                            style: { margin: '5px 0 0 0', color: '#6c757d', fontSize: '0.9rem' }
-                        }, \`Content Directory: \${contentDir}\`)
-                    ]),
-                    React.createElement('div', {
-                        key: 'controls',
-                        style: { display: 'flex', alignItems: 'center', gap: '10px' }
-                    }, [
-                        saveStatus && React.createElement('span', {
-                            key: 'status',
-                            style: { 
-                                fontSize: '0.9rem',
-                                color: saveStatus.startsWith('✅') ? '#28a745' : '#dc3545'
-                            }
-                        }, saveStatus),
-                        React.createElement('button', {
-                            key: 'save-btn',
-                            onClick: handleSave,
-                            disabled: isSaving,
-                            style: {
-                                padding: '10px 20px',
-                                backgroundColor: isSaving ? '#6c757d' : '#007bff',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: isSaving ? 'not-allowed' : 'pointer',
-                                fontSize: '0.9rem',
-                                fontWeight: '500',
-                                transition: 'background-color 0.2s'
-                            }
-                        }, isSaving ? 'Saving...' : 'Save')
-                    ])
-                ]),
-                React.createElement('div', {
-                    key: 'editor',
-                    id: 'editorjs',
-                    style: { 
-                        border: '1px solid #e9ecef',
-                        borderRadius: '8px',
-                        padding: '20px',
-                        backgroundColor: 'white',
-                        minHeight: '400px'
-                    }
-                }),
-                React.createElement('div', {
-                    key: 'tips',
-                    style: {
-                        marginTop: '20px',
-                        padding: '15px',
-                        backgroundColor: '#f8f9fa',
-                        borderRadius: '8px',
-                        fontSize: '0.85rem',
-                        color: '#6c757d'
-                    }
-                }, [
-                    React.createElement('strong', { key: 'label' }, '💡 Tips:'),
-                    React.createElement('ul', {
-                        key: 'list',
-                        style: { margin: '5px 0', paddingLeft: '20px' }
-                    }, [
-                        React.createElement('li', { key: 'tip1' }, [
-                            'Press ',
-                            React.createElement('kbd', { key: 'kbd1' }, 'Tab'),
-                            ' for inline toolbar'
-                        ]),
-                        React.createElement('li', { key: 'tip2' }, [
-                            'Type ',
-                            React.createElement('kbd', { key: 'kbd2' }, '/'),
-                            ' to access block tools'
-                        ]),
-                        React.createElement('li', { key: 'tip3' }, [
-                            'Use ',
-                            React.createElement('kbd', { key: 'kbd3' }, 'Ctrl/Cmd + S'),
-                            ' to save (coming soon)'
-                        ])
-                    ])
-                ])
-            ]);
-        };
-        
-        const initialData = ${JSON.stringify(initialData || null)};
-        const slug = "${slug}";
-        const contentDir = "${contentDir}";
-        
-        ReactDOM.render(
-            React.createElement(EditorUI, { initialData, slug, contentDir }),
-            document.getElementById('root')
-        );
+        // Auto-save on Ctrl+S
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                saveBtn.click();
+            }
+        });
     </script>
 </body>
-</html>`;
+</html>
+  `;
 } 
