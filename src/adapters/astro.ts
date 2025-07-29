@@ -1,233 +1,271 @@
 import type { AstroIntegration } from 'astro';
-import { EditorConfig } from '../types';
 import { handleGetMarkdown, handleSaveMarkdown, handleFetchUrl } from '../server/api-handlers';
 import { generateEditorHTML } from '../server/editor-page';
-import * as path from 'path';
+import { EditorConfig } from '../types';
 
-let currentConfig: EditorConfig | null = null;
-
-export function mountMarkdownEditor(config: EditorConfig) {
-  // Only mount in development
-  if (process.env.NODE_ENV === 'production') {
-    console.warn('dev-md-editor: Editor is disabled in production mode');
-    return;
-  }
-
-  currentConfig = {
-    ...config,
-    contentDir: path.resolve(config.contentDir),
-    editorPath: config.editorPath || '/_edit',
-    allowedExtensions: config.allowedExtensions || ['.md', '.mdx'],
-    framework: 'astro',
-  };
-
-  console.log('🚀 dev-md-editor: Mounted for Astro');
-  console.log(`📁 Content directory: ${currentConfig.contentDir}`);
-  console.log(`🔗 Editor path: [slug]${currentConfig.editorPath}`);
-}
-
-// Astro integration
-export function markdownEditor(config: EditorConfig): AstroIntegration {
-  return {
-    name: 'dev-md-editor',
-    hooks: {
-      'astro:config:setup': ({ command, injectRoute, addMiddleware }) => {
-        // Only add in development
-        if (command === 'dev') {
-          mountMarkdownEditor(config);
-
-          // Note: For production use, create manual routes instead of using integration
-          console.log('🚀 dev-md-editor: Setting up editor routes in development mode');
-          console.log('📝 Editor will be available at: [slug]/_edit');
+// Auto-detect all markdown files in the project
+function findAllMarkdownFiles(rootDir: string = './'): string[] {
+  const fs = require('fs');
+  const path = require('path');
+  const markdownFiles: string[] = [];
+  
+  function scanDirectory(dir: string) {
+    try {
+      const items = fs.readdirSync(dir);
+      
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
+        
+        // Skip node_modules, .git, dist, build directories
+        if (stat.isDirectory() && !item.startsWith('.') && 
+            !['node_modules', 'dist', 'build', '.astro', 'out'].includes(item)) {
+          scanDirectory(fullPath);
+        } else if (stat.isFile() && /\.(md|mdx)$/i.test(item)) {
+          markdownFiles.push(path.relative(rootDir, fullPath));
         }
       }
+    } catch (error) {
+      // Ignore permission errors or inaccessible directories
     }
-  };
+  }
+  
+  scanDirectory(rootDir);
+  return markdownFiles;
 }
 
-// Middleware for manual setup
-export function createEditorMiddleware() {
-  return async function(context: any, next: () => Promise<Response>) {
-    if (process.env.NODE_ENV === 'production' || !currentConfig) {
-      return next();
-    }
+export function markdownEditor(userConfig: EditorConfig = { contentDir: './', framework: 'astro' as const }): AstroIntegration {
+  return {
+    name: 'arjun-editor',
+    hooks: {
+      'astro:config:setup': ({ addMiddleware }) => {
+        // Only run in development
+        if (process.env.NODE_ENV === 'production') {
+          return;
+        }
 
-    const { request, url } = context;
-    const pathname = url.pathname;
+        // Add middleware to handle editor routes
+        addMiddleware({
+          order: 'pre',
+          entrypoint: '@arjun-editor/middleware'
+        });
 
-    // Handle API routes
-    if (pathname === '/api/_edit/save' && request.method === 'POST') {
-      return handleSaveAPI(context);
-    }
+        console.log('✨ arjun-editor: Integrated with your Astro dev server');
+        console.log('📂 Visit http://localhost:4321/_arjun_edit to see all markdown files');
+        console.log('🎯 Edit any file at http://localhost:4321/_arjun_edit/[file-path]/_edit');
+      },
 
-    if (pathname === '/api/_edit/fetchUrl' && request.method === 'POST') {
-      return handleFetchUrlAPI(context);
-    }
+      'astro:server:setup': ({ server }) => {
+        // Only run in development
+        if (process.env.NODE_ENV === 'production') {
+          return;
+        }
 
-    // Handle editor routes - pattern: /[slug]/_edit
-    if (pathname.endsWith('/_edit') && request.method === 'GET') {
-      const slug = pathname.slice(1, -6); // Remove leading / and trailing /_edit
-      if (slug && !slug.includes('/')) {
-        return handleEditorPage(slug);
+        // Add API routes
+        server.middlewares.use('/api/_arjun_edit', async (req, res, next) => {
+          try {
+            const url = new URL(req.url!, `http://${req.headers.host}`);
+            
+            // Ping endpoint
+            if (url.pathname === '/api/_arjun_edit/ping') {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                port: 4321, // Astro default dev port
+                contentDir: './',
+                integrated: true
+              }));
+              return;
+            }
+
+            // Save endpoint
+            if (url.pathname === '/api/_arjun_edit/save' && req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => body += chunk);
+              req.on('end', async () => {
+                try {
+                  const data = JSON.parse(body);
+                  const result = await handleSaveMarkdown({
+                    ...data,
+                    contentDir: './' // Always use project root
+                  });
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify(result));
+                } catch (error) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    success: false,
+                    error: (error as Error).message
+                  }));
+                }
+              });
+              return;
+            }
+
+            // Fetch URL endpoint
+            if (url.pathname === '/api/_arjun_edit/fetch' && req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => body += chunk);
+              req.on('end', async () => {
+                try {
+                  const { url: fetchUrl } = JSON.parse(body);
+                  const result = await handleFetchUrl(fetchUrl);
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify(result));
+                } catch (error) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    success: false,
+                    error: (error as Error).message
+                  }));
+                }
+              });
+              return;
+            }
+
+            next();
+          } catch (error) {
+            console.error('Arjun Editor API error:', error);
+            next();
+          }
+        });
+
+        // Add editor routes
+        server.middlewares.use('/_arjun_edit', async (req, res, next) => {
+          try {
+            const url = new URL(req.url!, `http://${req.headers.host}`);
+            
+            // Dashboard
+            if (url.pathname === '/_arjun_edit' || url.pathname === '/_arjun_edit/') {
+              const files = findAllMarkdownFiles('./');
+              const html = generateDashboardHTML(files);
+              res.writeHead(200, { 'Content-Type': 'text/html' });
+              res.end(html);
+              return;
+            }
+
+            // Editor for specific file
+            if (url.pathname.endsWith('/_edit')) {
+              const filePath = url.pathname.replace('/_arjun_edit/', '').replace('/_edit', '');
+              
+              const result = await handleGetMarkdown('./', filePath);
+              
+              if (!result.success) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Markdown file not found');
+                return;
+              }
+
+              const html = generateEditorHTML(filePath, './', result.data);
+              res.writeHead(200, { 'Content-Type': 'text/html' });
+              res.end(html);
+              return;
+            }
+
+            next();
+          } catch (error) {
+            console.error('Arjun Editor route error:', error);
+            next();
+          }
+        });
       }
     }
-
-    return next();
   };
 }
 
-// API endpoints for manual setup
-export async function handleEditorEndpoint(context: any) {
-  if (process.env.NODE_ENV === 'production' || !currentConfig) {
-    return new Response('Not Found', { status: 404 });
-  }
-
-  const slug = context.params.slug;
-  return handleEditorPage(slug);
-}
-
-export async function handleSaveEndpoint(context: any) {
-  if (process.env.NODE_ENV === 'production' || !currentConfig) {
-    return new Response(JSON.stringify({ success: false, error: 'Not available in production' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  return handleSaveAPI(context);
-}
-
-export async function handleFetchUrlEndpoint(context: any) {
-  if (process.env.NODE_ENV === 'production' || !currentConfig) {
-    return new Response(JSON.stringify({ success: 0, error: 'Not available in production' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  return handleFetchUrlAPI(context);
-}
-
-async function handleEditorPage(slug: string): Promise<Response> {
-  if (!currentConfig) {
-    return new Response('Editor not configured', { status: 500 });
-  }
-
-  try {
-    const result = await handleGetMarkdown(currentConfig.contentDir, slug);
+// Generate dashboard HTML for Astro
+function generateDashboardHTML(files: string[]): string {
+  const fileList = files.map(file => {
+    const editUrl = `/_arjun_edit/${file.replace(/\.(md|mdx)$/, '')}/_edit`;
+    const fileName = require('path').basename(file, require('path').extname(file));
+    const fileDir = require('path').dirname(file);
+    const displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
     
-    if (!result.success) {
-      return new Response(result.error, { status: 500 });
-    }
+    return `
+      <div class="file-item">
+        <div class="file-info">
+          <h3 class="file-name">${displayPath}</h3>
+          <p class="file-path">${file}</p>
+        </div>
+        <a href="${editUrl}" class="edit-btn">Edit</a>
+      </div>
+    `;
+  }).join('');
 
-    const html = generateEditorHTML(slug, currentConfig.contentDir, result.data);
-    
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html',
-      },
-    });
-  } catch (error) {
-    console.error('Error serving editor page:', error);
-    return new Response('Internal Server Error', { status: 500 });
-  }
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>arjun-editor - Project Files</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+            background: #ffffff; color: #1a1a1a; line-height: 1.6; padding: 2rem; min-height: 100vh;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { margin-bottom: 3rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e5e5; }
+        h1 { font-size: 1.5rem; font-weight: 400; color: #1a1a1a; margin-bottom: 0.5rem; }
+        .subtitle { color: #6b7280; font-size: 0.875rem; }
+        .integration-info { 
+            margin: 1rem 0; padding: 1rem; background: #f0f9ff; border: 1px solid #e0f2fe; 
+            border-radius: 4px; font-size: 0.875rem; color: #0c4a6e;
+        }
+        .files { background: #ffffff; border: 1px solid #e5e5e5; border-radius: 4px; }
+        .file-item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 1.25rem 1.5rem; border-bottom: 1px solid #f3f4f6; transition: background-color 0.15s ease;
+        }
+        .file-item:hover { background: #f9fafb; }
+        .file-item:last-child { border-bottom: none; }
+        .file-info { flex: 1; min-width: 0; }
+        .file-name { color: #1a1a1a; font-weight: 400; font-size: 1rem; margin-bottom: 0.25rem; }
+        .file-path { color: #6b7280; font-size: 0.8125rem; }
+        .edit-btn { 
+            background: #1a1a1a; color: #ffffff; padding: 0.5rem 1rem; border: 1px solid #1a1a1a; 
+            border-radius: 4px; text-decoration: none; font-size: 0.8125rem; transition: all 0.15s ease;
+        }
+        .edit-btn:hover { background: #374151; border-color: #374151; }
+        .empty { padding: 4rem 2rem; text-align: center; color: #6b7280; font-style: italic; }
+        .stats { 
+            margin: 1rem 0; padding: 1rem; background: #f9fafb; border: 1px solid #e5e7eb; 
+            border-radius: 4px; font-size: 0.875rem; color: #374151;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>arjun-editor</h1>
+            <p class="subtitle">Integrated with your Astro dev server</p>
+        </div>
+        
+        <div class="integration-info">
+            🔗 Running on the same port as your Astro app - no separate server needed!
+        </div>
+        
+        ${files.length > 0 ? `
+        <div class="stats">
+            ${files.length} markdown file${files.length === 1 ? '' : 's'} found in your project
+        </div>
+        ` : ''}
+        
+        <div class="files">
+            ${files.length > 0 ? fileList : '<div class="empty">No markdown files found in this project</div>'}
+        </div>
+    </div>
+</body>
+</html>
+  `;
 }
 
-async function handleSaveAPI(context: any): Promise<Response> {
-  if (!currentConfig) {
-    return new Response(JSON.stringify({ success: false, error: 'Editor not configured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+export function mountMarkdownEditor(config: EditorConfig = { contentDir: './', framework: 'astro' as const }) {
+  // Only run in development
+  if (process.env.NODE_ENV === 'production') {
+    return;
   }
-
-  try {
-    const body = await context.request.json();
-    const result = await handleSaveMarkdown({
-      slug: body.slug,
-      content: body.content,
-      contentDir: currentConfig.contentDir,
-    });
-
-    return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Error saving markdown:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-async function handleFetchUrlAPI(context: any): Promise<Response> {
-  try {
-    const body = await context.request.json();
-    const result = await handleFetchUrl(body.url);
-    return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('Error fetching URL:', error);
-    return new Response(JSON.stringify({
-      success: 0,
-      error: 'Failed to fetch URL data',
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-// Helper to generate route files for manual setup
-export function generateAstroRoutes() {
-  const routes = {
-    'src/pages/[slug]/_edit.ts': `import { handleEditorEndpoint } from 'dev-md-editor/astro';
-
-export const GET = handleEditorEndpoint;`,
-
-    'src/pages/api/_edit/save.ts': `import { handleSaveEndpoint } from 'dev-md-editor/astro';
-
-export const POST = handleSaveEndpoint;`,
-
-    'src/pages/api/_edit/fetchUrl.ts': `import { handleFetchUrlEndpoint } from 'dev-md-editor/astro';
-
-export const POST = handleFetchUrlEndpoint;`,
-
-    'src/middleware.ts': `import { createEditorMiddleware } from 'dev-md-editor/astro';
-
-const editorMiddleware = createEditorMiddleware();
-
-export const onRequest = editorMiddleware;`,
-  };
-
-  return routes;
-}
-
-// Configuration example
-export const astroConfig = {
-  // For astro.config.mjs
-  integration: `import { markdownEditor } from 'dev-md-editor/astro';
-
-export default defineConfig({
-  integrations: [
-    markdownEditor({
-      contentDir: './content',
-    }),
-    // Your other integrations...
-  ],
-});`,
-
-  // For manual setup
-  manual: `import { mountMarkdownEditor } from 'dev-md-editor/astro';
-
-if (import.meta.env.DEV) {
-  mountMarkdownEditor({
-    contentDir: './content',
-  });
-}`
-}; 
+  
+  console.log('✨ arjun-editor: Use the markdownEditor() integration in astro.config.mjs');
+} 

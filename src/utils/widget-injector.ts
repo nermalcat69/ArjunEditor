@@ -2,187 +2,152 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export interface WidgetConfig {
-  contentDir: string;
-  editorPort?: number;
-  autoInject?: boolean;
-  domains?: string[];
+  port?: number;
+  apiBase?: string;
+  editorBase?: string;
+  contentDir?: string;
 }
 
-// Generate the widget injection script
-export function generateWidgetScript(config: WidgetConfig): string {
-  const editorPort = config.editorPort || 3456;
-  
-  // Read the base widget injector script
-  const widgetScriptPath = path.join(__dirname, '../client/WidgetInjector.js');
-  let widgetScript = '';
-  
+export function generateWidgetScript(config: WidgetConfig = {}): string {
+  const {
+    port = 3000, // Default to same port as dev server
+    apiBase = '/api/_arjun_edit',
+    editorBase = '/_arjun_edit',
+    contentDir = './'
+  } = config;
+
+  // Try to read the widget injector file, fallback to inline script
   try {
-    widgetScript = fs.readFileSync(widgetScriptPath, 'utf8');
-  } catch (error) {
-    // Fallback inline script if file not found
-    widgetScript = `
-(function() {
-  'use strict';
-  
-  if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production') {
-    return;
-  }
-
-  if (window.__devMdEditorWidgetInjected || 
-      window.location.pathname.includes('/_edit') ||
-      document.querySelector('.dev-md-editor-widget')) {
-    return;
-  }
-
-  window.__devMdEditorWidgetInjected = true;
-
-  function detectSlug() {
-    const pathname = window.location.pathname;
-    let slug = pathname.substring(1);
-    slug = slug.replace(/\\.(html|php|aspx?)$/i, '');
-    if (!slug || slug === 'index') {
-      slug = 'index';
+    const widgetPath = path.join(__dirname, '../client/WidgetInjector.js');
+    if (fs.existsSync(widgetPath)) {
+      let script = fs.readFileSync(widgetPath, 'utf8');
+      // Replace placeholders with actual config
+      script = script.replace(/ARJUN_EDITOR_PORT/g, port.toString());
+      script = script.replace(/ARJUN_EDITOR_API_BASE/g, apiBase);
+      script = script.replace(/ARJUN_EDITOR_BASE/g, editorBase);
+      return script;
     }
-    return slug;
+  } catch (error) {
+    console.warn('Could not read widget injector file, using inline script');
   }
 
-  function createWidget(slug, editorPort) {
-    const widgetContainer = document.createElement('div');
-    widgetContainer.className = 'dev-md-editor-widget';
-    widgetContainer.style.cssText = \`
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      z-index: 10000;
-      transform: translateY(0);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      opacity: 1;
+  // Fallback inline script
+  return `
+(function() {
+  if (typeof window === 'undefined' || window.arjunEditorInjected) return;
+  window.arjunEditorInjected = true;
+
+  // Only run in development
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') return;
+  
+  // Detect current page slug for editing
+  function detectSlug() {
+    const path = window.location.pathname;
+    // Convert URL path to potential markdown file path
+    return path === '/' ? 'index' : path.replace(/^\//, '').replace(/\/$/, '');
+  }
+
+  // Check if editor is available on same port
+  async function checkEditor() {
+    try {
+      const response = await fetch('${apiBase}/ping');
+      const data = await response.json();
+      return data.success && data.integrated;
+    } catch {
+      return false;
+    }
+  }
+
+  // Create and inject the edit widget
+  function createWidget() {
+    const widget = document.createElement('div');
+    widget.id = 'arjun-edit-widget';
+    widget.innerHTML = \`
+      <style>
+        #arjun-edit-widget {
+          position: fixed !important;
+          bottom: 20px !important;
+          right: 20px !important;
+          z-index: 999999 !important;
+          background: rgba(26, 26, 26, 0.9) !important;
+          backdrop-filter: blur(10px) !important;
+          color: white !important;
+          padding: 8px 12px !important;
+          border-radius: 20px !important;
+          font-family: ui-monospace, monospace !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          opacity: 1 !important;
+          transform: translateY(0) !important;
+        }
+        #arjun-edit-widget:hover {
+          background: rgba(55, 65, 81, 0.9) !important;
+          transform: translateY(-2px) !important;
+        }
+        #arjun-edit-widget.auto-hide {
+          opacity: 0.3 !important;
+        }
+        #arjun-edit-widget svg {
+          width: 14px !important;
+          height: 14px !important;
+          fill: currentColor !important;
+        }
+      </style>
+      <svg viewBox="0 0 24 24">
+        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+      </svg>
+      Edit
     \`;
 
-    const toolbar = document.createElement('div');
-    toolbar.style.cssText = \`
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: white;
-      padding: 12px 20px;
-      border-radius: 28px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.2);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-weight: 500;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      user-select: none;
-      min-height: 20px;
-    \`;
-
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('width', '16');
-    icon.setAttribute('height', '16');
-    icon.setAttribute('viewBox', '0 0 24 24');
-    icon.setAttribute('fill', 'none');
-    icon.setAttribute('stroke', 'currentColor');
-    icon.setAttribute('stroke-width', '2');
-    icon.setAttribute('stroke-linecap', 'round');
-    icon.setAttribute('stroke-linejoin', 'round');
-    icon.style.cssText = 'flex-shrink: 0; opacity: 0.9;';
-
-    const pencilPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pencilPath.setAttribute('d', 'm18 2 4 4-14 14H4v-4L18 2z');
-    
-    const linePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    linePath.setAttribute('d', 'm14.5 5.5 4 4');
-
-    icon.appendChild(pencilPath);
-    icon.appendChild(linePath);
-
-    const text = document.createElement('span');
-    text.textContent = 'Edit';
-    text.style.cssText = \`
-      color: rgba(255, 255, 255, 0.95);
-      font-weight: 500;
-      letter-spacing: 0.01em;
-    \`;
-
-    toolbar.appendChild(icon);
-    toolbar.appendChild(text);
-    widgetContainer.appendChild(toolbar);
-
-    toolbar.addEventListener('click', () => {
-      const editUrl = \`http://localhost:\${editorPort}/\${slug}/_edit\`;
+    widget.addEventListener('click', () => {
+      const slug = detectSlug();
+      const editUrl = \`${editorBase}/\${slug}/_edit\`;
       window.open(editUrl, '_blank');
     });
 
-    toolbar.addEventListener('mouseenter', () => {
-      toolbar.style.transform = 'translateY(-2px) scale(1.02)';
-      toolbar.style.background = 'rgba(0, 0, 0, 0.9)';
-      toolbar.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3)';
-    });
+    // Auto-hide after 15 seconds, show on mouse movement
+    let hideTimeout;
+    function resetHideTimer() {
+      clearTimeout(hideTimeout);
+      widget.classList.remove('auto-hide');
+      hideTimeout = setTimeout(() => {
+        widget.classList.add('auto-hide');
+      }, 15000);
+    }
 
-    toolbar.addEventListener('mouseleave', () => {
-      toolbar.style.transform = 'translateY(0) scale(1)';
-      toolbar.style.background = 'rgba(0, 0, 0, 0.85)';
-      toolbar.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.2)';
-    });
+    document.addEventListener('mousemove', resetHideTimer);
+    resetHideTimer();
 
-    document.body.appendChild(widgetContainer);
+    document.body.appendChild(widget);
   }
 
-  function init() {
-    const slug = detectSlug();
-    createWidget(slug, ${editorPort});
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  // Initialize widget if editor is available
+  checkEditor().then(available => {
+    if (available) {
+      createWidget();
+    }
+  });
 })();
-    `;
-  }
-
-  return widgetScript;
+  `;
 }
 
-// Generate script tag for HTML injection
-export function generateWidgetScriptTag(config: WidgetConfig): string {
+export function generateWidgetScriptTag(config: WidgetConfig = {}): string {
+  return `<script>${generateWidgetScript(config)}</script>`;
+}
+
+export function generateWidgetMiddleware(config: WidgetConfig = {}) {
   const script = generateWidgetScript(config);
-  return `<script type="text/javascript">${script}</script>`;
-}
-
-// Generate middleware script for Next.js/Express
-export function generateWidgetMiddleware(config: WidgetConfig) {
-  const scriptTag = generateWidgetScriptTag(config);
   
-  return (html: string): string => {
-    // Only inject in development
-    if (process.env.NODE_ENV === 'production') {
-      return html;
-    }
-
-    // Don't inject on editor pages
-    if (html.includes('dev-md-editor-widget') || html.includes('/_edit')) {
-      return html;
-    }
-
-    // Try to inject before closing body tag
+  return function injectWidget(html: string): string {
+    // Inject the widget script before closing body tag
     if (html.includes('</body>')) {
-      return html.replace('</body>', `${scriptTag}</body>`);
+      return html.replace('</body>', `<script>${script}</script></body>`);
     }
-
-    // Fallback: inject before closing html tag
-    if (html.includes('</html>')) {
-      return html.replace('</html>', `${scriptTag}</html>`);
-    }
-
-    // Fallback: append to end
-    return html + scriptTag;
+    return html;
   };
 }
 

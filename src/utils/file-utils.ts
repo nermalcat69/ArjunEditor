@@ -40,20 +40,27 @@ export function writeMarkdownFile(filePath: string, data: MarkdownFile): void {
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
-export function findMarkdownFile(contentDir: string, slug: string): string | null {
+export function findMarkdownFile(baseDir: string, slug: string): string | null {
+  // For project-wide mode, slug might be a relative path like "docs/api/getting-started"
   const possiblePaths = [
-    path.join(contentDir, `${slug}.md`),
-    path.join(contentDir, slug, 'index.md'),
-    path.join(contentDir, `${slug}.mdx`),
-    path.join(contentDir, slug, 'index.mdx'),
+    `${slug}.md`,
+    `${slug}.mdx`,
+    path.join(slug, 'index.md'),
+    path.join(slug, 'index.mdx'),
+    path.join(slug, 'README.md'),
+    path.join(baseDir, `${slug}.md`),
+    path.join(baseDir, `${slug}.mdx`),
+    path.join(baseDir, slug, 'index.md'),
+    path.join(baseDir, slug, 'index.mdx'),
   ];
-  
-  for (const filePath of possiblePaths) {
-    if (fs.existsSync(filePath)) {
-      return filePath;
+
+  for (const possiblePath of possiblePaths) {
+    const fullPath = path.resolve(possiblePath);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      return fullPath;
     }
   }
-  
+
   return null;
 }
 

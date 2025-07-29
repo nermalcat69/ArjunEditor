@@ -1,6 +1,6 @@
 {
   "name": "arjun-editor",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A plug-and-play dev-only markdown editor for Next.js, SvelteKit, and Astro apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -17,12 +17,4 @@ export default defineConfig({
   clean: true,
   external: ['next', '@sveltejs/kit', 'astro', 'react', 'svelte'],
   noExternal: ['@editorjs/editorjs', 'editorjs-html'],
-  // Make CLI executable
-  esbuildOptions(options) {
-    if (options.entryPoints && typeof options.entryPoints === 'object' && 'cli' in options.entryPoints) {
-      options.banner = {
-        js: '#!/usr/bin/env node',
-      };
-    }
-  },
 }); 

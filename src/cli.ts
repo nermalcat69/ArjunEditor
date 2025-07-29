@@ -86,43 +86,46 @@ Auto-detects content in: ./content, ./src/content, ./docs, ./posts, ./blog
   return { contentDir, preferredPort, host: 'localhost' };
 }
 
-// Auto-detect content directory
-function findContentDir(): string {
-  const possibleDirs = [
-    './content',
-    './src/content', 
-    './docs',
-    './posts',
-    './blog',
-    './articles',
-    './markdown'
-  ];
+// Auto-detect content directory - now scans entire project
+function findAllMarkdownFiles(rootDir: string = './'): string[] {
+  const markdownFiles: string[] = [];
   
-  for (const dir of possibleDirs) {
+  function scanDirectory(dir: string) {
     try {
-      const resolvedPath = path.resolve(dir);
-      if (fs.existsSync(resolvedPath)) {
-        return dir;
+      const items = fs.readdirSync(dir);
+      
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
+        
+        // Skip node_modules, .git, .next, dist, build directories
+        if (stat.isDirectory() && !item.startsWith('.') && 
+            !['node_modules', 'dist', 'build', '.next', 'out'].includes(item)) {
+          scanDirectory(fullPath);
+        } else if (stat.isFile() && /\.(md|mdx)$/i.test(item)) {
+          markdownFiles.push(path.relative(rootDir, fullPath));
+        }
       }
-    } catch {
-      // Ignore errors when checking directory existence
+    } catch (error) {
+      // Ignore permission errors or inaccessible directories
     }
   }
   
-  return './content';
+  scanDirectory(rootDir);
+  return markdownFiles;
 }
 
 // Create a simple HTTP server
-function createServer(config: CLIConfig) {
+function createServer(config: CLIConfig, scanMode: string = 'content-directory') {
   const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url || '', true);
     const pathname = parsedUrl.pathname || '/';
-    
+
     // CORS headers for development
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
+
     if (req.method === 'OPTIONS') {
       res.writeHead(200);
       res.end();
@@ -133,10 +136,11 @@ function createServer(config: CLIConfig) {
       // Ping endpoint for widget detection
       if (pathname === '/api/_edit/ping') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          success: true, 
+        res.end(JSON.stringify({
+          success: true,
           port: config.port,
-          contentDir: config.contentDir 
+          contentDir: config.contentDir,
+          scanMode
         }));
         return;
       }
@@ -148,18 +152,19 @@ function createServer(config: CLIConfig) {
         req.on('end', async () => {
           try {
             const data = JSON.parse(body);
+            // For project-wide mode, handle relative paths
             const result = await handleSaveMarkdown({
               ...data,
-              contentDir: config.contentDir
+              contentDir: scanMode === 'project-wide' ? './' : config.contentDir
             });
-            
+
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(result));
           } catch (error) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-              success: false, 
-              error: (error as Error).message 
+            res.end(JSON.stringify({
+              success: false,
+              error: (error as Error).message
             }));
           }
         });
@@ -173,14 +178,14 @@ function createServer(config: CLIConfig) {
           try {
             const { url: fetchUrl } = JSON.parse(body);
             const result = await handleFetchUrl(fetchUrl);
-            
+
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(result));
           } catch (error) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-              success: false, 
-              error: (error as Error).message 
+            res.end(JSON.stringify({
+              success: false,
+              error: (error as Error).message
             }));
           }
         });
@@ -189,23 +194,27 @@ function createServer(config: CLIConfig) {
 
       // Handle editor routes
       if (pathname.endsWith('/_edit')) {
-        const slug = pathname.replace('/_edit', '').substring(1);
-        
-        if (!slug) {
+        const filePath = pathname.replace('/_edit', '').substring(1);
+
+        if (!filePath) {
           res.writeHead(400, { 'Content-Type': 'text/plain' });
-          res.end('Invalid slug');
+          res.end('Invalid file path');
           return;
         }
 
-        const result = await handleGetMarkdown(config.contentDir, slug);
-        
+        // For project-wide mode, treat the slug as a relative file path
+        const result = await handleGetMarkdown(
+          scanMode === 'project-wide' ? './' : config.contentDir, 
+          filePath
+        );
+
         if (!result.success) {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('Markdown file not found');
           return;
         }
 
-        const html = generateEditorHTML(slug, config.contentDir, result.data);
+        const html = generateEditorHTML(filePath, config.contentDir, result.data);
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(html);
         return;
@@ -213,8 +222,10 @@ function createServer(config: CLIConfig) {
 
       // File list page (home)
       if (pathname === '/' || pathname === '/index.html') {
-        const files = getAllMarkdownFiles(config.contentDir);
-        const html = generateFileListHTML(files, config);
+        const files = scanMode === 'project-wide' 
+          ? findAllMarkdownFiles('./') 
+          : getAllMarkdownFiles(config.contentDir);
+        const html = generateFileListHTML(files, config, scanMode);
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(html);
         return;
@@ -223,7 +234,7 @@ function createServer(config: CLIConfig) {
       // 404
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found');
-      
+
     } catch (error) {
       console.error('Server error:', error);
       res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -235,22 +246,27 @@ function createServer(config: CLIConfig) {
 }
 
 // Generate file list HTML
-function generateFileListHTML(files: string[], config: CLIConfig): string {
+function generateFileListHTML(files: string[], config: CLIConfig, scanMode: string = 'content-directory'): string {
   const fileList = files.map(file => {
-    const slug = file.replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
-    const editUrl = `/${slug}/_edit`;
+    const editUrl = `/${file.replace(/\.(md|mdx)$/, '')}/_edit`;
     const fileName = path.basename(file, path.extname(file));
+    const fileDir = path.dirname(file);
+    const displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
     
     return `
       <div class="file-item">
         <div class="file-info">
-          <h3 class="file-name">${fileName}</h3>
+          <h3 class="file-name">${displayPath}</h3>
           <p class="file-path">${file}</p>
         </div>
         <a href="${editUrl}" class="edit-btn">Edit</a>
       </div>
     `;
   }).join('');
+
+  const scopeDescription = scanMode === 'project-wide' 
+    ? 'Scanning entire project for markdown files'
+    : `Content directory: ${config.contentDir}`;
 
   return `
 <!DOCTYPE html>
@@ -298,6 +314,16 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
             color: #6b7280;
             font-size: 0.875rem;
             font-family: inherit;
+        }
+        
+        .scope-info {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: ${scanMode === 'project-wide' ? '#f0f9ff' : '#f9fafb'};
+            border: 1px solid ${scanMode === 'project-wide' ? '#e0f2fe' : '#e5e7eb'};
+            border-radius: 4px;
+            font-size: 0.875rem;
+            color: ${scanMode === 'project-wide' ? '#0c4a6e' : '#374151'};
         }
         
         .stats {
@@ -405,8 +431,11 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
         
         <div class="header">
             <h1>arjun-editor</h1>
-            <p class="subtitle">Content directory: ${config.contentDir}</p>
             <p class="subtitle">Server: http://localhost:${config.port}</p>
+        </div>
+        
+        <div class="scope-info">
+            📂 ${scopeDescription}
         </div>
         
         ${files.length > 0 ? `
@@ -416,7 +445,7 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
         ` : ''}
         
         <div class="files">
-            ${files.length > 0 ? fileList : '<div class="empty">No markdown files found in this directory</div>'}
+            ${files.length > 0 ? fileList : '<div class="empty">No markdown files found</div>'}
         </div>
         
         <div class="footer">
@@ -431,7 +460,7 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
 // Main function
 async function main() {
   // STRICT production check - multiple ways to detect production
-  const isProduction = 
+  const isProduction =
     process.env.NODE_ENV === 'production' ||
     process.env.VERCEL_ENV === 'production' ||
     process.env.NETLIFY_ENV === 'production' ||
@@ -448,45 +477,46 @@ async function main() {
   }
 
   const { contentDir, preferredPort, host } = parseArgs();
-  
-  // Auto-detect content directory if not specified
-  let finalContentDir = contentDir;
-  if (!contentDir) {
-    finalContentDir = findContentDir();
-    console.log(`📁 Auto-detected content directory: ${finalContentDir}`);
-  } else if (!fs.existsSync(path.resolve(contentDir))) {
-    console.log(`📁 Content directory "${contentDir}" not found, creating it...`);
-  }
 
-  // Ensure content directory exists
-  if (!fs.existsSync(path.resolve(finalContentDir))) {
-    console.log(`📁 Creating content directory: ${finalContentDir}`);
-    fs.mkdirSync(path.resolve(finalContentDir), { recursive: true });
+  // If contentDir is specified, use it; otherwise scan entire project
+  let workingDir = './';
+  let scanMode = 'project-wide';
+  
+  if (contentDir && fs.existsSync(path.resolve(contentDir))) {
+    workingDir = contentDir;
+    scanMode = 'content-directory';
+    console.log(`📁 Using content directory: ${contentDir}`);
+  } else if (contentDir) {
+    console.log(`📁 Content directory "${contentDir}" not found, scanning entire project...`);
+    scanMode = 'project-wide';
+  } else {
+    console.log(`📁 Scanning entire project for markdown files...`);
+    scanMode = 'project-wide';
   }
 
   // Find available port
   console.log(`🔍 Finding available port starting from ${preferredPort}...`);
   const port = await findAvailablePort(preferredPort);
-  
+
   if (port !== preferredPort) {
     console.log(`⚠️  Port ${preferredPort} was busy, using port ${port} instead`);
   }
 
   const config: CLIConfig = {
-    contentDir: finalContentDir,
+    contentDir: workingDir,
     port,
     host
   };
 
-  const server = createServer(config);
-  
+  const server = createServer(config, scanMode);
+
   server.listen(config.port, config.host, () => {
     console.log(`
 🚀 arjun-editor is running!
 
-📁 Content directory: ${config.contentDir}
+📁 ${scanMode === 'project-wide' ? 'Scanning entire project' : `Content directory: ${config.contentDir}`}
 🌐 Editor dashboard: http://${config.host}:${config.port}
-✏️  Edit any file: http://${config.host}:${config.port}/[filename]/_edit
+✏️  Edit any markdown file: http://${config.host}:${config.port}/[relative-path]/_edit
 
 💡 Visit your website pages to see the floating edit widget!
 🔒 Development mode only - automatically disabled in production
