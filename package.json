@@ -1,6 +1,6 @@
 {
   "name": "arjun-editor",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "A zero-config, Ghost-style live markdown editor. Just run `pnpm run editor` and start editing any markdown file in your project.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
