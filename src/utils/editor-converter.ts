@@ -138,34 +138,49 @@ export function markdownToEditorJS(markdown: string): EditorData {
   };
 }
 
-export function editorJSToMarkdown(data: EditorData): string {
+export function convertEditorDataToMarkdown(data: EditorData): string {
+  if (!data || !data.blocks) {
+    return '';
+  }
+
   return data.blocks.map(block => {
     switch (block.type) {
-      case 'header':
-        const level = '#'.repeat(block.data.level || 1);
-        return `${level} ${block.data.text}\n`;
-        
-      case 'paragraph':
-        return `${block.data.text}\n`;
-        
-      case 'list':
-        const style = block.data.style === 'ordered' ? 'ordered' : 'unordered';
-        return block.data.items.map((item: string, index: number) => {
+      case 'header': {
+        const headerData = block.data as { text: string; level: number };
+        return `${'#'.repeat(headerData.level)} ${headerData.text}`;
+      }
+      case 'paragraph': {
+        const paragraphData = block.data as { text: string };
+        return paragraphData.text;
+      }
+      case 'list': {
+        const listData = block.data as { style: string; items: string[] };
+        const style = listData.style === 'ordered' ? 'ordered' : 'unordered';
+        return listData.items.map((item: string, index: number) => {
           const prefix = style === 'ordered' ? `${index + 1}. ` : '- ';
           return `${prefix}${item}`;
-        }).join('\n') + '\n';
-        
-      case 'quote':
-        return block.data.text.split('\n').map((line: string) => `> ${line}`).join('\n') + '\n';
-        
-      case 'code':
-        return `\`\`\`\n${block.data.code}\n\`\`\`\n`;
-        
-      case 'link':
-        return `[${block.data.meta?.title || block.data.link}](${block.data.link})\n`;
-        
+        }).join('\n');
+      }
+      case 'quote': {
+        const quoteData = block.data as { text: string; caption?: string };
+        return quoteData.text.split('\n').map((line: string) => `> ${line}`).join('\n');
+      }
+      case 'code': {
+        const codeData = block.data as { code: string; language?: string };
+        return `\`\`\`${codeData.language || ''}\n${codeData.code}\n\`\`\``;
+      }
+      case 'linkTool': {
+        const linkData = block.data as { link: string; meta?: { title?: string } };
+        return `[${linkData.meta?.title || linkData.link}](${linkData.link})`;
+      }
+      case 'image': {
+        const imageData = block.data as { file?: { url: string }; caption?: string; url?: string };
+        const imageUrl = imageData.file?.url || imageData.url || '';
+        const caption = imageData.caption || '';
+        return `![${caption}](${imageUrl})`;
+      }
       default:
-        return `${block.data.text || ''}\n`;
+        return block.data?.text || '';
     }
-  }).join('\n');
+  }).join('\n\n');
 } 

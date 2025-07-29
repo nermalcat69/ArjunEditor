@@ -21,7 +21,9 @@ function findContentDir(): string {
       if (fs.existsSync(resolvedPath)) {
         return dir;
       }
-    } catch {}
+    } catch {
+      // Ignore errors when checking directory existence
+    }
   }
   
   // Default to ./content even if it doesn't exist

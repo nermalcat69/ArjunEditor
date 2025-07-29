@@ -1,7 +1,8 @@
-import { SaveRequest, SaveResponse, EditorData } from '../types';
-import { findMarkdownFile, parseMarkdownFile, writeMarkdownFile } from '../utils/file-utils';
-import { markdownToEditorJS, editorJSToMarkdown } from '../utils/editor-converter';
+import * as fs from 'fs';
 import * as path from 'path';
+import { markdownToEditorJS, convertEditorDataToMarkdown } from '../utils/editor-converter';
+import { findMarkdownFile, parseMarkdownFile, writeMarkdownFile } from '../utils/file-utils';
+import { SaveRequest, SaveResponse, EditorData } from '../types';
 
 export async function handleGetMarkdown(
   contentDir: string, 
@@ -56,8 +57,8 @@ export async function handleSaveMarkdown(
 
     const { slug, content, contentDir } = request;
     
-    // Convert Editor.js data back to markdown
-    const markdown = editorJSToMarkdown(content);
+    // Convert editor data back to markdown
+    const markdown = convertEditorDataToMarkdown(content);
     
     // Find existing file or create new path
     let filePath = findMarkdownFile(contentDir, slug);

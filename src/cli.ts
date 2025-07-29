@@ -79,7 +79,7 @@ Auto-detects content in: ./content, ./src/content, ./docs, ./posts, ./blog
       `);
       process.exit(0);
     } else if (!arg.startsWith('-')) {
-      contentDir = arg;
+      contentDir = arg; // Positional argument for content directory
     }
   }
 
@@ -104,7 +104,9 @@ function findContentDir(): string {
       if (fs.existsSync(resolvedPath)) {
         return dir;
       }
-    } catch {}
+    } catch {
+      // Ignore errors when checking directory existence
+    }
   }
   
   return './content';
@@ -238,8 +240,6 @@ function generateFileListHTML(files: string[], config: CLIConfig): string {
     const slug = file.replace(/\.(md|mdx)$/, '').replace(/\\/g, '/');
     const editUrl = `/${slug}/_edit`;
     const fileName = path.basename(file, path.extname(file));
-    const fileDir = path.dirname(file);
-    const displayPath = fileDir === '.' ? fileName : `${fileDir}/${fileName}`;
     
     return `
       <div class="file-item">

@@ -16,18 +16,18 @@ import { EditorConfig } from './types';
 
 export function integrateEditor(config: EditorConfig & { framework: 'next' | 'sveltekit' | 'astro' }) {
   switch (config.framework) {
-    case 'next':
-      const { mountMarkdownEditor: mountNext } = require('./adapters/nextjs');
-      return mountNext(config);
-      
-    case 'sveltekit':
-      const { mountMarkdownEditor: mountSvelte } = require('./adapters/sveltekit');
-      return mountSvelte(config);
-      
-    case 'astro':
-      const { mountMarkdownEditor: mountAstro } = require('./adapters/astro');
-      return mountAstro(config);
-      
+    case 'next': {
+      const { mountMarkdownEditor } = require('./adapters/nextjs');
+      return mountMarkdownEditor(config);
+    }
+    case 'sveltekit': {
+      const { mountMarkdownEditor } = require('./adapters/sveltekit');
+      return mountMarkdownEditor(config);
+    }
+    case 'astro': {
+      const { mountMarkdownEditor } = require('./adapters/astro');
+      return mountMarkdownEditor(config);
+    }
     default:
       throw new Error(`Unsupported framework: ${config.framework}`);
   }
@@ -35,26 +35,29 @@ export function integrateEditor(config: EditorConfig & { framework: 'next' | 'sv
 
 // Helper to detect framework automatically
 export function autoDetectFramework(): 'next' | 'sveltekit' | 'astro' | null {
+  // Try to detect Next.js
   try {
-    // Check for Next.js
-    if (require.resolve('next')) {
-      return 'next';
-    }
-  } catch {}
+    require.resolve('next');
+    return 'next';
+  } catch {
+    // Next.js not found
+  }
 
+  // Try to detect SvelteKit
   try {
-    // Check for SvelteKit
-    if (require.resolve('@sveltejs/kit')) {
-      return 'sveltekit';
-    }
-  } catch {}
+    require.resolve('@sveltejs/kit');
+    return 'sveltekit';
+  } catch {
+    // SvelteKit not found
+  }
 
+  // Try to detect Astro
   try {
-    // Check for Astro
-    if (require.resolve('astro')) {
-      return 'astro';
-    }
-  } catch {}
+    require.resolve('astro');
+    return 'astro';
+  } catch {
+    // Astro not found
+  }
 
   return null;
 }
